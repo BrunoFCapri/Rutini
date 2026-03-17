@@ -1,2 +1,73 @@
-asjfgaaal;gkfdsa
-ds
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <!-- Referencia al CSS de Bootstrap -->
+    <link rel="stylesheet" href="../css/bootstrap.min.css">
+    <style>
+        body, html {
+            height: 100%;
+        }
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f5f5f5;
+            padding-top: 40px;
+            padding-bottom: 40px;
+        }
+        .form-signin {
+            width: 100%;
+            max-width: 330px;
+            padding: 15px;
+            margin: auto;
+        }
+        .form-signin .checkbox {
+            font-weight: 400;
+        }
+        .form-signin .form-floating:focus-within {
+            z-index: 2;
+        }
+        .form-signin input[type="email"] {
+            margin-bottom: -1px;
+            border-bottom-right-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+        .form-signin input[type="password"] {
+            margin-bottom: 10px;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
+    </style>
+</head>
+<body class="text-center">
+    
+    <main class="form-signin">
+        <form>
+            <h1 class="h3 mb-3 fw-normal">Iniciar Sesión</h1>
+
+            <div class="form-floating">
+                <input type="email" class="form-control" id="floatingInput" placeholder="nombre@ejemplo.com">
+                <label for="floatingInput">Correo electrónico</label>
+            </div>
+            <div class="form-floating">
+                <input type="password" class="form-control" id="floatingPassword" placeholder="Contraseña">
+                <label for="floatingPassword">Contraseña</label>
+            </div>
+
+            <div class="checkbox mb-3">
+                <label>
+                    <input type="checkbox" value="remember-me"> Recordarme
+                </label>
+            </div>
+            <button class="w-100 btn btn-lg btn-primary" type="submit">Ingresar</button>
+            <p class="mt-5 mb-3 text-muted">&copy; 2026</p>
+        </form>
+    </main>
+
+    <!-- Referencia al JS de Bootstrap -->
+    <script src="../js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
