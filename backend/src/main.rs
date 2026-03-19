@@ -1,5 +1,6 @@
 mod tasks;
 mod users;
+mod notes;
 
 use axum::{
     extract::{Path, State},
@@ -74,6 +75,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/status", get(get_status))
         .route("/api/tasks", get(tasks::list_tasks).post(tasks::create_task))
         .route("/api/tasks/:id", patch(tasks::update_task).delete(tasks::delete_task))
+        .route("/api/notes", get(notes::list_notes).post(notes::create_note))
+        .route("/api/notes/:id", get(notes::get_note).patch(notes::update_note).delete(notes::delete_note))
         .route("/api/auth/register", post(users::register))
         .route("/api/auth/login", post(users::login))
         .layer(cors)

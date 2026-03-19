@@ -47,8 +47,48 @@ pub struct AuthResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: String, // username
+    pub user_id: Uuid,
     pub exp: usize,
 }
+
+use axum::{
+    async_trait,
+    extract::FromRequestParts,
+    http::request::Parts,
+};
+
+#[async_trait]
+impl<S> FromRequestParts<S> for Claims
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let auth_header = parts
+            .headers
+            .get("Authorization")
+            .ok_or((StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?
+            .to_str()
+            .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid Authorization header".to_string()))?;
+
+        if !auth_header.starts_with("Bearer ") {
+            return Err((StatusCode::UNAUTHORIZED, "Invalid Authorization scheme".to_string()));
+        }
+
+        let token = &auth_header["Bearer ".len()..];
+
+        let token_data = decode::<Claims>(
+            token,
+            &DecodingKey::from_secret(JWT_SECRET),
+            &Validation::default(),
+        )
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid token".to_string()))?;
+
+        Ok(token_data.claims)
+    }
+}
+
 
 // Secret for JWT - in production this should be in .env
 const JWT_SECRET: &[u8] = b"secret_key_change_me_in_production";
@@ -98,6 +138,7 @@ pub async fn register(
 
     let claims = Claims {
         sub: user.username.clone(),
+        user_id: user.id,
         exp: expiration as usize,
     };
 
@@ -112,10 +153,18 @@ pub async fn login(
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, (StatusCode, String)> {
     // 1. Find user by email
-    let row = sqlx::query!(
-        "SELECT id, username, email, password_hash FROM users WHERE email = $1",
-        payload.email
+    #[derive(FromRow)]
+    struct UserLoginDetails {
+        pub id: Uuid,
+        pub username: String,
+        pub email: String,
+        pub password_hash: String,
+    }
+
+    let row = sqlx::query_as::<_, UserLoginDetails>(
+        "SELECT id, username, email, password_hash FROM users WHERE email = $1"
     )
+    .bind(&payload.email)
     .fetch_optional(&state.db)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)))?;
@@ -137,6 +186,7 @@ pub async fn login(
 
     let claims = Claims {
         sub: user_data.username.clone(),
+        user_id: user_data.id,
         exp: expiration as usize,
     };
 

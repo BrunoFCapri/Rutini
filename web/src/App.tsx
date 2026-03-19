@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Notes from './pages/Notes';
 import './App.css';
 
 interface Status {
@@ -16,6 +17,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { logout, user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetch('http://localhost:3000/api/status')
@@ -72,7 +74,7 @@ function Dashboard() {
         <section className="card">
           <h2>Quick Actions</h2>
           <div className="actions">
-            <button>New Note</button>
+            <button onClick={() => navigate('/notes')}>My Notes</button>
             <button>Add Task</button>
             <button>Sync Calendar</button>
           </div>
@@ -93,6 +95,14 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route
+          path="/notes"
+          element={
+            <ProtectedRoute>
+              <Notes />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/"
           element={
