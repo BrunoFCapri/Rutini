@@ -1,5 +1,52 @@
 # 🌌 Chaja Mesh: Productivity Suite
 
+Una infraestructura de productividad integral, multiplataforma y de alto rendimiento desarrollada desde cero. Este ecosistema reemplaza la dependencia de servicios de terceros (Google Calendar, Notion, Google Tasks) mediante una arquitectura de microservicios soberana, diseñada para la eficiencia extrema en hardware local (**Raspberry Pi 5 / CapiOS**).
+
+---
+
+## 🎯 Core Features & Multi-Platform
+
+* **📅 Calendar Engine (Rust):** Implementación nativa de lógica de eventos y recurrencias (RFC 5545) con sistema de notificaciones push asíncronas.
+* **📝 Block-Based Notes (Rust):** Motor de notas estilo Notion con soporte para tipos de datos complejos y persistencia en tiempo real.
+* **✅ Task Orchestrator (Rust):** Gestión de tareas con prioridades, estados de ciclo de vida y sincronización multi-dispositivo.
+* **📱 Mobile App (React Native):** Aplicación móvil nativa con notificaciones de eventos en tiempo real y modo offline.
+* **💻 Desktop Client (Tauri/Rust):** Cliente de escritorio ultra-ligero que aprovecha el backend en Rust para un consumo mínimo de recursos.
+* **📟 Terminal UI - Lite Version (Rust/TUI):** Versión de terminal optimizada para **CapiOS**. Diseñada para consumir el mínimo de energía y CPU, ideal para gestión rápida vía SSH o local.
+* **🐳 Infra-Controller (Go):** Gestor de infraestructura que interactúa con el Docker SDK para el despliegue automático y monitoreo de salud de los servicios.
+
+---
+
+## 🛠️ Stack Tecnológico
+
+| Capa | Tecnología | Rol / Implementación |
+| :--- | :--- | :--- |
+| **Backend Core** | **Rust** (Axum/Tokio) | Lógica de negocio con seguridad de memoria y alta concurrencia. |
+| **Orquestación** | **Go** | Scripts de gestión para Docker Engine y automatización de la infra. |
+| **Mobile App** | **React Native** | Interfaz móvil multiplataforma con integración de notificaciones push. |
+| **Desktop / TUI** | **Tauri / Ratatui** | Clientes livianos enfocados en performance y bajo consumo. |
+| **Database** | PostgreSQL | Persistencia relacional robusta para datos estructurados. |
+| **Cache** | Redis | Gestión de sesiones y colas de tareas rápidas. |
+| **Runtime** | Docker / Debian | Aislamiento de servicios en arquitectura ARM64 (**CapiOS**). |
+
+---
+
+## 🏗️ Arquitectura del Sistema
+
+```text
+[ Mobile App ] <───┐          [ Desktop / TUI ]
+                   │                 │
+                   ▼                 ▼
+        [ Reverse Proxy: Nginx/Traefik ]
+                   │
+       ├─► [ Service: Notes & Calendar (Rust) ] ──► [ PostgreSQL ]
+       │
+       ├─► [ Infra-Controller (Go) ] ────────────► [ Docker SDK ]
+       │
+       └─► [ Auth & Session (Redis) ]
+```
+
+---
+
 ## 🚀 Getting Started
 
 Este proyecto consta de 3 partes principales:
