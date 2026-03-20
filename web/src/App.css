@@ -283,3 +283,9 @@ h1 {
   margin-bottom: 0.25rem;
   color: var(--text-secondary);
 }
+
+.block-input.selected {
+  background-color: rgba(56, 189, 248, 0.2) !important;
+  outline: 2px solid var(--accent);
+  border-radius: 4px;
+}

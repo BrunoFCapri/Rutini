@@ -16,7 +16,7 @@ interface Block {
 }
 
 
-const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDown, onFocusNext, onFocusPrev }: { 
+const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDown, onFocusNext, onFocusPrev, onManualFocus, onMouseEnter }: { 
     block: Block, 
     index: number,
     isFocused: boolean,
@@ -24,9 +24,12 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
     updateBlock: (id: string, content: string) => void,
     onKeyDown: (e: React.KeyboardEvent, index: number) => void,
     onFocusNext: (current: number, isShift: boolean) => void,
-    onFocusPrev: (current: number, isShift: boolean) => void
+    onFocusPrev: (current: number, isShift: boolean) => void,
+    onManualFocus: (isShift: boolean) => void,
+    onMouseEnter: () => void
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [isMouseDown, setIsMouseDown] = useState(false);
 
     useLayoutEffect(() => {
         if (textareaRef.current) {
@@ -40,8 +43,8 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
             textareaRef.current.focus();
              // Always move cursor to end for consistency on focus entry
              // (Desired behavior can be refined later e.g. based on direction)
-            const len = textareaRef.current.value.length;
-            textareaRef.current.setSelectionRange(len, len);
+            // const len = textareaRef.current.value.length;
+            // textareaRef.current.setSelectionRange(len, len);
         }
     }, [isFocused]);
 
@@ -78,6 +81,29 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
             value={block.content || ''}
             onChange={e => updateBlock(block.id, e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={(e) => {
+                // If focus came from click, we might want to wait for click event to handle shift
+                // But generally onFocus runs before onClick.
+            }}
+            onClick={(e) => {
+                 onManualFocus(e.shiftKey);
+            }}
+            onMouseDown={(e) => {
+                // Track mouse down to enable drag selection
+                // If Shift is pressed, we want block selection, not text selection
+                if (e.shiftKey) {
+                    e.preventDefault();
+                    onManualFocus(true);
+                } else if (!isFocused) {
+                    // If simply clicking (no shift) and not focused, take focus
+                    onManualFocus(false);
+                }
+            }}
+            onMouseEnter={(e) => {
+                if (e.buttons === 1) { // If left mouse button is held down
+                    onMouseEnter();
+                }
+            }}
             placeholder={block.type === 'text' ? "Type '/' for commands" : `Heading ${block.type.replace('h', '')}`}
             rows={1}
             style={{ 
@@ -98,6 +124,54 @@ export default function Notes() {
   const [selectionAnchor, setSelectionAnchor] = useState<number | null>(null);
   const { token, logout } = useAuth();
   const navigate = useNavigate();
+  // const editorRef = useRef<HTMLElement>(null); // Not used currently
+  
+  // Track if we are in block selection mode by mouse
+  const [isMouseSelecting, setIsMouseSelecting] = useState(false);
+
+  // Global backspace prevention and selection deletion
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+        if (e.defaultPrevented) return; // Respect existing preventDefault calls
+
+        if (e.key === 'Backspace') {
+            const target = e.target as HTMLElement;
+            const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+            
+            // If we have a multi-block selection, we want to delete blocks, not backspace text in one block
+            if (selectionAnchor !== null && selectionAnchor !== focusedBlockIndex) {
+                 e.preventDefault();
+                 const start = Math.min(selectionAnchor, focusedBlockIndex);
+                 const end = Math.max(selectionAnchor, focusedBlockIndex);
+                 
+                 const newBlocks = blocks.filter((_, i) => i < start || i > end);
+                 if (newBlocks.length === 0) {
+                     newBlocks.push({ id: generateId(), type: 'text', content: '' });
+                 }
+                 setBlocks(newBlocks);
+                 setSelectionAnchor(null);
+                 setFocusedBlockIndex(start > 0 ? start - 1 : 0);
+                 return;
+            }
+
+            // Prevent browser back navigation if not in an input
+            if (!isInput) {
+                e.preventDefault();
+            }
+        }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [selectionAnchor, focusedBlockIndex, blocks]);
+
+  // Global mouse up for selection end
+  useEffect(() => {
+    const handleMouseUp = () => setIsMouseSelecting(false);
+    
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, []);
 
   // Fetch notes
   useEffect(() => {
@@ -232,13 +306,23 @@ export default function Notes() {
       
       if (isShift) {
         if (selectionAnchor === null) {
-            // First time pressing shift: anchor is the current block (before update)
-            setSelectionAnchor(focusedBlockIndex);
+            setSelectionAnchor(focusedBlockIndex !== -1 ? focusedBlockIndex : index);
         }
       } else {
-        setSelectionAnchor(null);
+         // If we are merely clicking, reset anchor unless we are dragging?
+         // This is handled by onMouseDown logic separately if needed
+         if (!isMouseSelecting) {
+            setSelectionAnchor(null);
+         }
       }
       setFocusedBlockIndex(index);
+  };
+  
+  const handleMouseEnter = (index: number) => {
+      if (isMouseSelecting) {
+         // If we are selecting, update focus, which updates selection range
+         setFocusedBlockIndex(index);
+      }
   };
 
   const isBlockSelected = (index: number) => {
@@ -319,6 +403,16 @@ export default function Notes() {
                       isSelected={isBlockSelected(index)}
                       onFocusNext={(next, isShift) => handleFocus(next + 1, isShift)}
                       onFocusPrev={(prev, isShift) => handleFocus(prev - 1, isShift)}
+                      onManualFocus={(isShift) => {
+                          if (isShift) {
+                              handleFocus(index, true); 
+                          } else {
+                              setSelectionAnchor(index);
+                              setFocusedBlockIndex(index);
+                              setIsMouseSelecting(true);
+                          }
+                      }}
+                      onMouseEnter={() => handleMouseEnter(index)}
                   />
                 </div>
               ))}
