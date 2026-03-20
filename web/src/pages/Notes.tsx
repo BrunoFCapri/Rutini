@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,13 +11,14 @@ interface Note {
 
 interface Block {
   id: string;
+  type: 'text' | 'h1' | 'h2' | 'h3';
   content: string;
 }
 
 export default function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>([{ id:  Math.random().toString(36).substring(2), content: '' }]);
+  const [blocks, setBlocks] = useState<Block[]>([{ id: crypto.randomUUID(), type: 'text', content: '' }]);
   const [title, setTitle] = useState('');
   const { token, logout } = useAuth();
   const navigate = useNavigate();
@@ -42,12 +43,12 @@ export default function Notes() {
   }, [token]);
 
   const generateId = () => {
-    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+    return crypto.randomUUID();
   };
 
   const createNote = async () => {
     if (!token) return;
-    const initialBlocks = [{ id: generateId(), content: "" }];
+    const initialBlocks = [{ id: generateId(), type: 'text', content: "" }];
     const newNote = { title: "Untitled", content: initialBlocks };
     
     try {
@@ -86,18 +87,19 @@ export default function Notes() {
         }
         
         if (Array.isArray(content) && content.length > 0) {
-            // Ensure every block has an ID
+            // Ensure every block has an ID and type
             const safeBlocks = content.map((b: any) => ({
                 id: b.id || generateId(),
+                type: b.type || 'text',
                 content: b.content || ''
             }));
             setBlocks(safeBlocks);
         } else {
-            setBlocks([{ id: generateId(), content: '' }]);
+            setBlocks([{ id: generateId(), type: 'text', content: '' }]);
         }
     } catch (e) {
         console.error("Error parsing note content:", e);
-        setBlocks([{ id: generateId(), content: '' }]);
+        setBlocks([{ id: generateId(), type: 'text', content: '' }]);
     }
   };
 
@@ -119,11 +121,21 @@ export default function Notes() {
   };
 
   const updateBlock = (id: string, content: string) => {
-    setBlocks(prev => prev.map(b => b.id === id ? { ...b, content } : b));
+    setBlocks(prev => prev.map(b => {
+        if (b.id !== id) return b;
+        
+        if (b.type === 'text') {
+            if (content === '# ') return { ...b, type: 'h1', content: '' };
+            if (content === '## ') return { ...b, type: 'h2', content: '' };
+            if (content === '### ') return { ...b, type: 'h3', content: '' };
+        }
+        
+        return { ...b, content };
+    }));
   };
 
   const addBlock = (index: number) => {
-    const newBlock = { id: generateId(), content: '' };
+    const newBlock: Block = { id: generateId(), type: 'text', content: '' };
     const newBlocks = [...blocks];
     newBlocks.splice(index + 1, 0, newBlock);
     setBlocks(newBlocks);
@@ -141,8 +153,13 @@ export default function Notes() {
       e.preventDefault();
       addBlock(index);
     } else if (e.key === 'Backspace' && blocks[index].content === '') {
-      e.preventDefault(); // preventing default backspace is important here
-      removeBlock(index);
+      if (blocks[index].type !== 'text') {
+          e.preventDefault();
+          setBlocks(prev => prev.map((b, i) => i === index ? { ...b, type: 'text' } : b));
+      } else {
+          e.preventDefault();
+          removeBlock(index);
+      }
     }
   };
 
@@ -178,13 +195,13 @@ export default function Notes() {
               {blocks.map((block, index) => (
                 <div key={block.id} className="block-wrapper">
                     <input
-                        className="block-input"
+                        className={`block-input type-${block.type}`}
                         value={block.content || ''}
                         onChange={e => updateBlock(block.id, e.target.value)}
                         onKeyDown={e => handleKeyDown(e, index)}
                         onBlur={saveNote}
-                        placeholder="Type '/' for commands"
-                        autoFocus={index === blocks.length - 1} // Auto-focus on new blocks
+                        placeholder={block.type === 'text' ? "Type '/' for commands" : `Heading ${block.type.replace('h', '')}`}
+                        autoFocus={index === blocks.length - 1} 
                     />
                 </div>
               ))}
