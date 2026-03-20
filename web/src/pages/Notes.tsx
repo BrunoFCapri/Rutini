@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,16 +7,17 @@ interface Note {
   title: string;
   content: any;
   updated_at: string;
+  parent_id?: string | null;
 }
 
 interface Block {
   id: string;
-  type: 'text' | 'h1' | 'h2' | 'h3' | 'image';
+  type: 'text' | 'h1' | 'h2' | 'h3' | 'image' | 'note';
   content: string;
 }
 
 
-const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDown, onFocusNext, onFocusPrev, onManualFocus, onMouseEnter, onPaste }: { 
+const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDown, onFocusNext, onFocusPrev, onManualFocus, onMouseEnter, onPaste, onNavigateNote, getNoteTitle }: { 
     block: Block, 
     index: number,
     isFocused: boolean,
@@ -27,10 +28,13 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
     onFocusPrev: (current: number, isShift: boolean) => void,
     onManualFocus: (isShift: boolean) => void,
     onMouseEnter: () => void,
-    onPaste: (e: React.ClipboardEvent) => void
+    onPaste: (e: React.ClipboardEvent) => void,
+    onNavigateNote: (noteId: string) => void,
+    getNoteTitle: (id: string) => string
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const imageContainerRef = useRef<HTMLDivElement>(null);
+    const noteContainerRef = useRef<HTMLDivElement>(null);
     const [isMouseDown, setIsMouseDown] = useState(false);
 
     useLayoutEffect(() => {
@@ -46,6 +50,8 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
                 textareaRef.current.focus();
             } else if (imageContainerRef.current) {
                 imageContainerRef.current.focus();
+            } else if (noteContainerRef.current) {
+                noteContainerRef.current.focus();
             }
         }
     }, [isFocused]);
@@ -133,6 +139,78 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
         );
     }
 
+    if (block.type === 'note') {
+        const handleNoteClick = () => {
+             // Block content should be JSON { title: ..., id: ... } for display, 
+             // but 'onNavigateNote' only needs ID
+             try {
+                const noteInfo = JSON.parse(block.content);
+                if (noteInfo && noteInfo.id) {
+                    onNavigateNote(noteInfo.id);
+                }
+             } catch (e) {
+                console.error("Invalid note block content", e);
+             }
+        };
+        
+        const handleNoteKey = (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleNoteClick();
+            } else if (e.key === 'ArrowDown') {
+                 e.preventDefault();
+                 onFocusNext(index, e.shiftKey);
+             } else if (e.key === 'ArrowUp') {
+                 e.preventDefault();
+                 onFocusPrev(index, e.shiftKey);
+             } else {
+                 onKeyDown(e, index);
+             }
+        };
+
+        const noteInfo = (() => {
+            try { return JSON.parse(block.content) } catch { return { title: 'Untitled Note', id: '' } } 
+        })();
+
+        // Try to get live title if available
+        const displayTitle = getNoteTitle(noteInfo.id) || noteInfo.title || 'Untitled';
+
+
+        return (
+             <div 
+                ref={noteContainerRef}
+                tabIndex={0}
+                onKeyDown={handleNoteKey}
+                className={`block-input type-note ${isSelected ? 'selected' : ''}`}
+                style={{ 
+                    border: isSelected ? '2px solid #38bdf8' : '1px solid #334155',
+                    padding: '10px',
+                    borderRadius: '4px',
+                    outline: 'none',
+                    backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.1)' : '#1e293b',
+                    color: '#e2e8f0', // Always light text for dark note block
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '5px'
+                }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (e.shiftKey) {
+                        onManualFocus(true);
+                    } else {
+                        handleNoteClick();
+                        onManualFocus(false); 
+                    }
+                }}
+            >
+                <span style={{ fontSize: '1.2em' }}>📄</span>
+                <span style={{ fontWeight: 500, textDecoration: 'underline', color: '#60a5fa' }}>{displayTitle}</span>
+            </div>
+        );
+    }
+
     return (
         <textarea
             ref={textareaRef}
@@ -172,6 +250,94 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
                 backgroundColor: isSelected ? 'rgba(170, 59, 255, 0.1)' : 'transparent'
             }}
         />
+    );
+};
+
+const SidebarItem = ({ note, selectedId, onSelect, onDelete }: { note: any, selectedId: string | undefined, onSelect: (n: any) => void, onDelete: (id: string, e: React.MouseEvent) => void }) => {
+    const [expanded, setExpanded] = useState(false);
+    const hasChildren = note.children && note.children.length > 0;
+    const [isHovered, setIsHovered] = useState(false);
+
+    // Auto-expand if a child is selected
+    useEffect(() => {
+        const containsSelected = (n: any): boolean => {
+            if (n.id === selectedId) return true;
+            if (n.children && n.children.length > 0) {
+                return n.children.some(containsSelected);
+            }
+            return false;
+        };
+
+        if (containsSelected(note)) {
+            setExpanded(true);
+        }
+    }, [selectedId, note]);
+
+    return (
+        <li style={{ listStyle: 'none', marginLeft: '10px' }}>
+            <div 
+                className={selectedId === note.id ? 'active' : ''}
+                style={{ 
+                    cursor: 'pointer', 
+                    padding: '5px', 
+                    display: 'flex', 
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: selectedId === note.id ? '#e0f2fe' : 'transparent',
+                    borderRadius: '4px',
+                    position: 'relative',
+                }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(note);
+                }}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            >
+               <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', flex: 1 }}>
+                    {hasChildren ? (
+                        <span 
+                                onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+                                style={{ marginRight: '5px', fontSize: '0.8em', color: '#64748b', cursor: 'pointer', flexShrink: 0 }}
+                        >
+                            {expanded ? '▼' : '▶'}
+                        </span>
+                    ) : (
+                        <span style={{ width: '15px', flexShrink: 0 }}></span>
+                    )}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {note.title || "Untitled"}
+                    </span>
+               </div>
+               
+               {isHovered && (
+                   <button
+                        onClick={(e) => onDelete(note.id, e)}
+                        style={{
+                            border: 'none',
+                            background: 'none',
+                            color: '#94a3b8',
+                            cursor: 'pointer',
+                            fontSize: '1em',
+                            padding: '0 5px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexShrink: 0
+                        }}
+                        title="Delete page"
+                   >
+                       🗑️
+                   </button>
+               )}
+            </div>
+            {expanded && hasChildren && (
+                <ul className="notes-list-nested" style={{ paddingLeft: '0', marginTop: '2px' }}>
+                    {note.children.map((child: any) => (
+                        <SidebarItem key={child.id} note={child} selectedId={selectedId} onSelect={onSelect} onDelete={onDelete} />
+                    ))}
+                </ul>
+            )}
+        </li>
     );
 };
 
@@ -393,7 +559,7 @@ export default function Notes() {
         
         if (res.ok) {
             const savedNote = await res.json();
-            setNotes([savedNote, ...notes]);
+            setNotes(prev => [savedNote, ...prev]);
             selectNote(savedNote);
         } else {
             console.error("Failed to create note:", await res.text());
@@ -403,7 +569,169 @@ export default function Notes() {
     }
   };
 
+  const deleteNote = async (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!token) return;
+    if (!window.confirm("Are you sure you want to delete this page and all its subpages?")) return;
+
+    try {
+        const res = await fetch(`http://localhost:3000/api/notes/${noteId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+             setNotes(prev => prev.filter(n => n.id !== noteId)); // This might need a recursive filter if we kept full tree in state, but notes is flat list
+             if (selectedNote?.id === noteId) {
+                 setSelectedNote(null);
+                 setBlocks([]);
+                 setTitle('');
+             }
+        }
+    } catch (e) {
+        console.error("Error deleting note:", e);
+    }
+  };
+
+  const createSubNote = async (blockIndex: number) => {
+    console.log("createSubNote: Function started for block index:", blockIndex);
+    if (!token || !selectedNote) {
+        console.warn("createSubNote: Token or selectedNote missing");
+        return;
+    }
+    
+    // Fallback ID generator if crypto fails
+    const safeGenerateId = () => {
+        try { return crypto.randomUUID(); } 
+        catch { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+    };
+
+    const subNoteId = safeGenerateId();
+    const initialBlocks = [{ id: safeGenerateId(), type: 'text', content: "" }];
+    const newNote = { title: "Untitled Subpage", content: initialBlocks, parent_id: selectedNote.id };
+
+    console.log("createSubNote: Posting new note to API:", newNote);
+
+    try {
+        const res = await fetch('http://localhost:3000/api/notes', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify(newNote)
+        });
+        
+        if (res.ok) {
+            const savedNote = await res.json();
+            console.log("createSubNote: Subnote created:", savedNote);
+            
+            // Refetch all notes to ensure hierarchy is up to date
+            const notesRes = await fetch('http://localhost:3000/api/notes', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (notesRes.ok) {
+                const allNotes = await notesRes.json();
+                console.log("createSubNote: Notes list updated, count:", allNotes.length);
+                setNotes(allNotes);
+            } else {
+                // Fallback if fetch fails
+                setNotes(prev => [savedNote, ...prev]);
+            }
+            
+            // 2. IMPORTANT: Save parent note immediately to persist the link!
+            // We use the current 'blocks' state (which contains the trigger text like '/page')
+            // and replace that block with the Link Block.
+            const blocksForSave = [...blocks];
+            
+            // Ensure we are not accessing out of bounds
+            if (blockIndex >= 0 && blockIndex < blocksForSave.length) {
+                blocksForSave[blockIndex] = {
+                    ...blocksForSave[blockIndex],
+                    type: 'note',
+                    content: JSON.stringify({ id: savedNote.id, title: savedNote.title })
+                };
+            }
+            
+            // Add a new text block if we are at the end
+            if (blockIndex === blocksForSave.length - 1) {
+                 blocksForSave.push({ id: safeGenerateId(), type: 'text', content: '' });
+            }
+
+            console.log("createSubNote: Updating parent blocks locally and remotely:", blocksForSave);
+
+            setBlocks(blocksForSave);
+            setFocusedBlockIndex(blockIndex + 1);
+
+            const patchRes = await fetch(`http://localhost:3000/api/notes/${selectedNote.id}`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}` 
+                },
+                body: JSON.stringify({ content: blocksForSave })
+            });
+
+            if (!patchRes.ok) {
+                 console.error("createSubNote: Failed to patch parent!", await patchRes.text());
+                 alert("Error: Link to subpage could not be saved to parent.");
+            } else {
+                 console.log("createSubNote: Parent patched successfully.");
+            }
+
+        } else {
+            console.error("Failed to create subnote:", await res.text());
+            alert("Failed to create subpage.");
+        }
+    } catch (e) {
+        console.error("Error creating subnote:", e);
+        alert("Exception creating subpage. See console.");
+    }
+  };
+
+  const saveNote = async () => {
+    if (!selectedNote || !token) return;
+    
+    // Optimistic update locally
+    const updated = { ...selectedNote, title, content: blocks };
+    setNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
+
+    // Persist to backend
+    try {
+        await fetch(`http://localhost:3000/api/notes/${selectedNote.id}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ title, content: blocks })
+        });
+    } catch (e) {
+        console.error("Failed to auto-save note:", e);
+    }
+  };
+
+  // Auto-save effect
+  useEffect(() => {
+    // Debounce save operation
+    const timeoutId = setTimeout(() => {
+        if (selectedNote && token) {
+            saveNote();
+        }
+    }, 1000); // Save after 1 second of inactivity
+
+    return () => clearTimeout(timeoutId);
+  }, [blocks, title]); // Re-run when content changes
+
   const selectNote = (note: Note) => {
+    // Save previous note state before switching if there was a selection
+    if (selectedNote && blocks.length > 0) {
+        // Fire and forget save for the previous note
+        // Note: This uses the CLOSURE variables (blocks, title) of the CURRENT render
+        // which correspond to the note we are leaving.
+        saveNote(); 
+    }
+
     setSelectedNote(note);
     setTitle(note.title);
     try {
@@ -431,38 +759,39 @@ export default function Notes() {
         console.error("Error parsing note content:", e);
         setBlocks([{ id: generateId(), type: 'text', content: '' }]);
     }
-  };
-
-  const saveNote = async () => {
-    if (!selectedNote || !token) return;
-    
-    // Optimistic update
-    const updated = { ...selectedNote, title, content: blocks };
-    setNotes(notes.map(n => n.id === updated.id ? updated : n));
-
-    await fetch(`http://localhost:3000/api/notes/${selectedNote.id}`, {
-      method: 'PATCH',
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}` 
-      },
-      body: JSON.stringify({ title, content: blocks })
-    });
+    // Reset history when switching entries
+    setHistory([[{ id: generateId(), type: 'text', content: '' }]]);
+    setHistoryPointer(0);
   };
 
   const updateBlock = (id: string, content: string) => {
-    setBlocks(prev => prev.map(b => {
-        if (b.id !== id) return b;
-        
-        if (b.type === 'text') {
-            if (content === '# ') return { ...b, type: 'h1', content: '' };
-            if (content === '## ') return { ...b, type: 'h2', content: '' };
-            if (content === '### ') return { ...b, type: 'h3', content: '' };
-            if (content === '/image') return { ...b, type: 'image', content: '' };
+    // Check for /page command or other commands
+    // We check against the literal content being typed
+    const index = blocks.findIndex(b => b.id === id);
+    if (index !== -1 && blocks[index].type === 'text') {
+        if (content === '/page ') {
+             createSubNote(index);
+             return; 
         }
-        
-        return { ...b, content };
-    }));
+        if (content === '# ') {
+            setBlocks(prev => prev.map(b => b.id === id ? { ...b, type: 'h1', content: '' } : b));
+            return;
+        }
+        if (content === '## ') {
+            setBlocks(prev => prev.map(b => b.id === id ? { ...b, type: 'h2', content: '' } : b));
+            return;
+        }
+        if (content === '### ') {
+            setBlocks(prev => prev.map(b => b.id === id ? { ...b, type: 'h3', content: '' } : b));
+            return;
+        }
+        if (content === '/image') {
+            setBlocks(prev => prev.map(b => b.id === id ? { ...b, type: 'image', content: '' } : b));
+            return;
+        }
+    }
+
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, content } : b));
   };
 
   const addBlock = (index: number, content: string = '', type: Block['type'] = 'text') => {
@@ -624,7 +953,7 @@ export default function Notes() {
             
             const imagesToInsert = [...images];
             let insertIndex = index + 1;
-
+            
             if (text) {
                 // If appending to existing block, preserve type
                 const oldContent = currentBlock.content;
@@ -659,6 +988,27 @@ export default function Notes() {
         });
   };
 
+  const treeNotes = useMemo(() => {
+    const noteMap: Record<string, any> = {};
+    const tree: any[] = [];
+    
+    // First pass: create map entries
+    notes.forEach(note => {
+      noteMap[note.id] = { ...note, children: [] };
+    });
+    
+    // Second pass: link children to parents
+    notes.forEach(note => {
+       if (note.parent_id && noteMap[note.parent_id]) {
+           noteMap[note.parent_id].children.push(noteMap[note.id]);
+       } else {
+           tree.push(noteMap[note.id]);
+       }
+    });
+
+    return tree;
+  }, [notes]);
+
   return (
     <div className="notes-layout">
       <aside className="sidebar">
@@ -667,13 +1017,15 @@ export default function Notes() {
             <h3>Notes</h3>
             <button className="add-btn" onClick={createNote}>+</button>
         </div>
-        <ul className="notes-list">
-          {notes.map(note => (
-            <li key={note.id} 
-                className={selectedNote?.id === note.id ? 'active' : ''}
-                onClick={() => selectNote(note)}>
-              {note.title || "Untitled"}
-            </li>
+        <ul className="notes-list" style={{ padding: '0 10px' }}>
+          {treeNotes.map(note => (
+             <SidebarItem 
+                key={note.id} 
+                note={note} 
+                selectedId={selectedNote?.id} 
+                onSelect={(n) => selectNote(n)} 
+                onDelete={(id, e) => deleteNote(id, e)}
+             />
           ))}
         </ul>
       </aside>
@@ -710,6 +1062,11 @@ export default function Notes() {
                       }}
                       onMouseEnter={() => handleMouseEnter(index)}
                       onPaste={(e) => handlePaste(e, index)}
+                      onNavigateNote={(noteId) => {
+                          const targetNote = notes.find(n => n.id === noteId);
+                          if (targetNote) selectNote(targetNote);
+                      }}
+                      getNoteTitle={(id) => notes.find(n => n.id === id)?.title || ''}
                   />
                 </div>
               ))}
