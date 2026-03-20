@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
 
 interface Note {
   id: string;
@@ -544,7 +545,7 @@ export default function Notes() {
   // Fetch notes
   useEffect(() => {
     if (!token) return;
-    fetch('http://localhost:3000/api/notes', {
+    fetch(`${API_URL}/api/notes`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => {
@@ -570,7 +571,7 @@ export default function Notes() {
     const newNote = { title: "Untitled", content: initialBlocks };
     
     try {
-        const res = await fetch('http://localhost:3000/api/notes', {
+        const res = await fetch(`${API_URL}/api/notes`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -597,7 +598,7 @@ export default function Notes() {
     if (!window.confirm("Are you sure you want to delete this page and all its subpages?")) return;
 
     try {
-        const res = await fetch(`http://localhost:3000/api/notes/${noteId}`, {
+        const res = await fetch(`${API_URL}/api/notes/${noteId}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -650,7 +651,7 @@ export default function Notes() {
     console.log("createSubNote: Posting new note to API:", newNote);
 
     try {
-        const res = await fetch('http://localhost:3000/api/notes', {
+        const res = await fetch(`${API_URL}/api/notes`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -664,7 +665,7 @@ export default function Notes() {
             console.log("createSubNote: Subnote created:", savedNote);
             
             // Refetch all notes to ensure hierarchy is up to date
-            const notesRes = await fetch('http://localhost:3000/api/notes', {
+            const notesRes = await fetch(`${API_URL}/api/notes`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (notesRes.ok) {
@@ -700,7 +701,7 @@ export default function Notes() {
             setBlocks(blocksForSave);
             setFocusedBlockIndex(blockIndex + 1);
 
-            const patchRes = await fetch(`http://localhost:3000/api/notes/${selectedNote.id}`, {
+            const patchRes = await fetch(`${API_URL}/api/notes/${selectedNote.id}`, {
                 method: 'PATCH',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -747,7 +748,7 @@ export default function Notes() {
 
     // Persist to backend
     try {
-        await fetch(`http://localhost:3000/api/notes/${selectedNote.id}`, {
+        await fetch(`${API_URL}/api/notes/${selectedNote.id}`, {
           method: 'PATCH',
           headers: { 
             'Content-Type': 'application/json',

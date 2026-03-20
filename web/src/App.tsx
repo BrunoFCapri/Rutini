@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Notes from './pages/Notes';
+import { API_URL } from './config';
 import './App.css';
 
 interface Status {
@@ -20,7 +21,7 @@ function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/status')
+    fetch(`${API_URL}/api/status`)
       .then((res) => {
         if (!res.ok) throw new Error('Failed to fetch status');
         return res.json();
