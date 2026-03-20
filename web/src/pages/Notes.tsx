@@ -444,6 +444,11 @@ export default function Notes() {
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // If we have a selection, Enter should clear it? 
+      // User requested "deseleccione todo".
+      if (selectionAnchor !== null) {
+          setSelectionAnchor(null);
+      }
       addBlock(index);
     } // If Backspace is pressed and selection exists
     else if (e.key === 'Backspace') {
