@@ -126,15 +126,112 @@ export default function Notes() {
   const navigate = useNavigate();
   // const editorRef = useRef<HTMLElement>(null); // Not used currently
   
-  // Track if we are in block selection mode by mouse
   const [isMouseSelecting, setIsMouseSelecting] = useState(false);
 
-  // Global backspace prevention and selection deletion
+  // History state for Undo/Redo. Limit 50 steps.
+  const [history, setHistory] = useState<Block[][]>([[{ id: crypto.randomUUID(), type: 'text', content: '' }]]);
+  // Pointer to current state in history
+  const [historyPointer, setHistoryPointer] = useState(0);
+  
+  // Ref to ignore updates triggered by undo/redo
+  const isUndoing = useRef(false);
+
+  // Centralized History Update
+  useEffect(() => {
+    if (isUndoing.current) {
+        isUndoing.current = false;
+        return;
+    }
+
+    const currentTip = history[historyPointer];
+    // Avoid duplicates
+    if (JSON.stringify(blocks) === JSON.stringify(currentTip)) return;
+
+    // Detect structure vs content change
+    const isStructureChange = blocks.length !== currentTip?.length || 
+                              blocks.some((b, i) => b.id !== currentTip[i]?.id || b.type !== currentTip[i]?.type);
+
+    let isWordBreak = false;
+    
+    // Structure change -> Fast (50ms)
+    // Word break (Space/Enter) -> Fast (100ms)
+    // Typing -> Slow (800ms)
+    let timeoutDuration = 800;
+
+    if (isStructureChange) {
+        timeoutDuration = 50;
+    } else {
+        // Find the block that changed
+        const index = blocks.findIndex((b, i) => b.content !== currentTip[i]?.content);
+        if (index !== -1) {
+             const changedBlock = blocks[index];
+             const oldContent = currentTip[index]?.content || "";
+             // If we added a space or newline, treat as word break
+             if (changedBlock.content.length > oldContent.length && 
+                (changedBlock.content.endsWith(' ') || changedBlock.content.endsWith('\n'))) {
+                 timeoutDuration = 200;
+             }
+        }
+    }
+
+    const handler = setTimeout(() => {
+        setHistory(prev => {
+            const newHistory = prev.slice(0, historyPointer + 1);
+            newHistory.push(blocks);
+            if (newHistory.length > 50) newHistory.shift();
+            return newHistory;
+        });
+        setHistoryPointer(prev => {
+             const next = prev + 1;
+             return next >= 50 ? 49 : next;
+        });
+    }, timeoutDuration);
+
+    return () => clearTimeout(handler);
+  }, [blocks]); // Only run when blocks change
+  
+  // Global key listener
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-        if (e.defaultPrevented) return; // Respect existing preventDefault calls
+        if (e.defaultPrevented) return; 
 
+        // Define hasSelection here for reuse
         const hasSelection = selectionAnchor !== null && selectionAnchor !== focusedBlockIndex;
+
+        // Undo (Ctrl+Z) / Redo (Ctrl+Shift+Z or Ctrl+Y)
+        if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+            if (e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    // Redo
+                    if (historyPointer < history.length - 1) {
+                         isUndoing.current = true;
+                         const next = historyPointer + 1;
+                         setBlocks(history[next]);
+                         setHistoryPointer(next);
+                    }
+                } else {
+                    // Undo
+                    if (historyPointer > 0) {
+                         isUndoing.current = true;
+                         const prev = historyPointer - 1;
+                         setBlocks(history[prev]);
+                         setHistoryPointer(prev);
+                    }
+                }
+                return;
+            } else if (e.key.toLowerCase() === 'y') {
+                // Warning: some browsers map Ctrl+Y to Redo
+                e.preventDefault();
+                 if (historyPointer < history.length - 1) {
+                        isUndoing.current = true;
+                        const next = historyPointer + 1;
+                        setBlocks(history[next]);
+                        setHistoryPointer(next);
+                }
+                return;
+            }
+        }
 
         // Deselect on Escape, Enter, or Space if multiple blocks selected
         if (hasSelection && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) {
@@ -143,6 +240,7 @@ export default function Notes() {
             // Allow Enter/Space to propagate to input for valid typing
         }
 
+        // Global backspace prevention and selection deletion
         if (e.key === 'Backspace') {
             const target = e.target as HTMLElement;
             const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
@@ -154,6 +252,7 @@ export default function Notes() {
                  const end = Math.max(selectionAnchor, focusedBlockIndex);
                  
                  const newBlocks = blocks.filter((_, i) => i < start || i > end);
+                 // If resulting block is empty...
                  if (newBlocks.length === 0) {
                      newBlocks.push({ id: generateId(), type: 'text', content: '' });
                  }
@@ -172,7 +271,8 @@ export default function Notes() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectionAnchor, focusedBlockIndex, blocks]);
+  }, [selectionAnchor, focusedBlockIndex, blocks, history, historyPointer]);
+
 
   // Global mouse up for selection end
   useEffect(() => {
