@@ -32,6 +32,7 @@ interface TaskTreeItemProps {
   selectedTaskId?: string;
   onUpdate: (id: string, updates: Partial<Task>) => void;
   onDelete: (id: string) => void;
+  breadcrumb?: string; // NEW prop for showing path
 }
 
 const TaskTreeItem = ({
@@ -43,7 +44,8 @@ const TaskTreeItem = ({
   onSelect,
   selectedTaskId,
   onUpdate,
-  onDelete
+  onDelete,
+  breadcrumb
 }: TaskTreeItemProps) => {
   // Sort children: Active first, then Done
   const children = (tasksByParent.get(task.id) || []).sort((a,b) => {
@@ -105,6 +107,7 @@ const TaskTreeItem = ({
              {isExpanded ? '▼' : '▶'}
          </div>
 
+         {/* Selection Checkbox */}
         <input
             type="checkbox"
             checked={isDone}
@@ -112,21 +115,31 @@ const TaskTreeItem = ({
             onChange={() => onUpdate(task.id, { status: isDone ? 'todo' : 'done' })}
             style={{ marginRight: '12px', width: '16px', height: '16px', cursor: 'pointer', accentColor: '#38bdf8' }}
         />
-      
-        <span style={{ 
-            flex: 1, 
-            textDecoration: isDone ? 'line-through' : 'none',
-            color: isDone ? '#94a3b8' : '#f8fafc',
-            fontWeight: 500,
-            fontSize: '0.95rem'
-        }}>
-            {task.title}
-            {task.due_date && (
-                <span style={{ fontSize: '0.75rem', color: new Date(task.due_date) < new Date() && !isDone ? '#f87171' : '#94a3b8', marginLeft: '8px' }}>
-                    📅 {new Date(task.due_date).toLocaleDateString()}
-                </span>
+        
+        {/* Title & Breadcrumb Container */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {breadcrumb && (
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {breadcrumb}
+                </div>
             )}
-        </span>
+            
+            <div style={{ 
+                textDecoration: isDone ? 'line-through' : 'none',
+                color: isDone ? '#94a3b8' : '#f8fafc',
+                fontWeight: 500,
+                fontSize: '0.95rem',
+                display: 'flex',
+                alignItems: 'center'
+            }}>
+                {task.title}
+                {task.due_date && (
+                    <span style={{ fontSize: '0.75rem', color: new Date(task.due_date) < new Date() && !isDone ? '#f87171' : '#94a3b8', marginLeft: '8px' }}>
+                        📅 {new Date(task.due_date).toLocaleDateString()}
+                    </span>
+                )}
+            </div>
+        </div>
 
         <button 
             onClick={(e) => {
@@ -135,7 +148,7 @@ const TaskTreeItem = ({
             }}
             style={{ 
                 background: 'none', border: 'none', cursor: 'pointer', 
-                color: task.is_starred ? '#fbbf24' : '#475569', fontSize: '1.1rem', marginRight: '8px'
+                color: task.is_starred ? '#fbbf24' : '#475569', fontSize: '1.1rem', marginRight: '8px', marginLeft: '8px'
             }}
         >
             ★
@@ -187,36 +200,15 @@ export default function Tasks() {
   const { token, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  // --- Computations ---
-  const tasksByParent = useMemo(() => {
-    // If showing starred only, treat all starred tasks as roots (flat list)
-    // We ignore hierarchy here to show exactly what's starred
-    if (showStarredOnly) {
-         return new Map<string, Task[]>([['root', tasks]]);
-    }
-
-    const map = new Map<string, Task[]>();
-    tasks.forEach(t => {
-        const pid = t.parent_id || 'root';
-        if (!map.has(pid)) map.set(pid, []);
-        map.get(pid)?.push(t);
-    });
-    return map;
-  }, [tasks, showStarredOnly]);
-
-  const rootTasks = (tasksByParent.get('root') || []).sort((a,b) => {
-      // Sort: Starred first, then Newest
-      if (a.is_starred && !b.is_starred) return -1;
-      if (!a.is_starred && b.is_starred) return 1;
-      return (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-  });
-
   // --- Initial Load ---
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchLists();
-    fetchTasks();
-  }, [isAuthenticated, selectedListId, showStarredOnly]);
+    
+    // FETCH ALL TASKS always, allow client filtering for better UX (breadcrumbs)
+    // and performance on small datasets
+    fetchAllTasks();
+  }, [isAuthenticated]); // Run once on auth
 
   // --- Fetchers ---
   const fetchLists = async () => {
@@ -228,30 +220,88 @@ export default function Tasks() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchTasks = async () => {
+  const fetchAllTasks = async () => {
     setLoading(true);
     try {
-      let url = `${API_URL}/api/tasks?`;
-      if (selectedListId) url += `list_id=${selectedListId}&`;
-      if (showStarredOnly) url += `is_starred=true&`;
-      
-      const res = await fetch(url, {
+      // No filters in URL -> Get All
+      const res = await fetch(`${API_URL}/api/tasks`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
           const data = await res.json();
           setTasks(data);
-          // If a task is selected, ensure it's updated in local state if refreshed
-          if(selectedTask) {
-              const updated = data.find((t: Task) => t.id === selectedTask.id);
-              if(updated) setSelectedTask(updated);
-          }
       }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- Computations ---
+  
+  // Filtered lists for display
+  const tasksByParent = useMemo(() => {
+      // We always group ALL tasks to build the map for lookups/expansion
+      // But we will filter ROOTS for display later
+      const map = new Map<string, Task[]>();
+      tasks.forEach(t => {
+        const pid = t.parent_id || 'root';
+        if (!map.has(pid)) map.set(pid, []);
+        map.get(pid)?.push(t);
+      });
+      return map;
+  }, [tasks]);
+
+  const visibleRootTasks = useMemo(() => {
+      if (showStarredOnly) {
+          // Flattened list of starred tasks
+          return tasks.filter(t => t.is_starred);
+      }
+      
+      // Default: Root tasks (filtered by list if selected)
+      let roots = tasksByParent.get('root') || [];
+      
+      if (selectedListId) {
+          roots = roots.filter(t => t.list_id === selectedListId);
+      }
+      
+      return roots.sort((a,b) => {
+          if (a.is_starred && !b.is_starred) return -1;
+          if (!a.is_starred && b.is_starred) return 1;
+          return (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      });
+  }, [tasks, tasksByParent, showStarredOnly, selectedListId]);
+
+  // Helper for breadcrumbs
+  const getBreadcrumb = (task: Task) => {
+      // Only show breadcrumb if viewing Starred list or "All Tasks" mixed view
+      
+      const chain: string[] = [];
+      
+      // List Name
+      if (task.list_id) {
+          const l = lists.find(li => li.id === task.list_id);
+          if (l) chain.push(l.title);
+      }
+
+      // Parents
+      let current = task;
+      const parents: string[] = [];
+      // Safety break to prevent infinite loops in cyclic refs (shouldn't happen but good practice)
+      let depth = 0;
+      while (current.parent_id && depth < 10) {
+          const p = tasks.find(t => t.id === current.parent_id);
+          if (p) {
+              parents.unshift(p.title);
+              current = p;
+          } else {
+              break;
+          }
+          depth++;
+      }
+      
+      return [...chain, ...parents].join(' > ');
   };
 
   // --- Actions ---
@@ -347,7 +397,7 @@ export default function Tasks() {
           })
       ));
     } catch (e) {
-      fetchTasks(); // Revert on error
+      fetchAllTasks(); // Revert on error
     }
   };
 
@@ -377,7 +427,7 @@ export default function Tasks() {
       });
     } catch (e) { 
         setError('Failed to delete'); 
-        fetchTasks(); // Revert
+        fetchAllTasks(); // Revert
     }
   };
 
@@ -515,12 +565,12 @@ export default function Tasks() {
         </form>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {/* Active Tasks Tree */}
-            {rootTasks.filter(t => t.status !== 'done').map(task => (
+            {/* Active Tasks or Filtered View */}
+            {visibleRootTasks.filter(t => t.status !== 'done').map(task => (
                 <TaskTreeItem 
                     key={task.id} 
                     task={task} 
-                    level={0}
+                    level={showStarredOnly ? 0 : 0} // Flatten indentation if starred view
                     tasksByParent={tasksByParent}
                     expandedTasks={expandedTasks}
                     toggleExpand={toggleExpand}
@@ -528,18 +578,19 @@ export default function Tasks() {
                     selectedTaskId={selectedTask?.id}
                     onUpdate={updateTask}
                     onDelete={handleDeleteTask}
+                    breadcrumb={showStarredOnly ? getBreadcrumb(task) : undefined}
                 />
             ))}
             
-            {/* Completed Tasks Tree (Roots) */}
-            {tasks.some(t => t.status === 'done' && !t.parent_id) && (
+            {/* Completed Tasks */}
+            {visibleRootTasks.some(t => t.status === 'done') && (
                 <div style={{ marginTop: '30px' }}>
                     <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '10px' }}>Completed</h3>
-                    {rootTasks.filter(t => t.status === 'done').map(task => (
+                    {visibleRootTasks.filter(t => t.status === 'done').map(task => (
                         <TaskTreeItem 
                             key={task.id} 
                             task={task} 
-                            level={0}
+                            level={showStarredOnly ? 0 : 0}
                             tasksByParent={tasksByParent}
                             expandedTasks={expandedTasks}
                             toggleExpand={toggleExpand}
@@ -547,12 +598,13 @@ export default function Tasks() {
                             selectedTaskId={selectedTask?.id}
                             onUpdate={updateTask}
                             onDelete={handleDeleteTask}
+                            breadcrumb={showStarredOnly ? getBreadcrumb(task) : undefined}
                         />
                     ))}
                 </div>
             )}
 
-            {tasks.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>No tasks found.</div>}
+            {visibleRootTasks.length === 0 && !loading && <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>No tasks found.</div>}
         </div>
       </div>
 
@@ -562,6 +614,11 @@ export default function Tasks() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <h3 style={{ margin: 0, color: '#f8fafc' }}>Task Details</h3>
                 <button onClick={() => setSelectedTask(null)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#94a3b8' }}>×</button>
+            </div>
+            
+            {/* Breadcrumb in details too */}
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '10px', fontStyle: 'italic' }}>
+                {getBreadcrumb(selectedTask)}
             </div>
 
             <input 
