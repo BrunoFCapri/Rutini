@@ -189,6 +189,12 @@ export default function Tasks() {
 
   // --- Computations ---
   const tasksByParent = useMemo(() => {
+    // If showing starred only, treat all starred tasks as roots (flat list)
+    // We ignore hierarchy here to show exactly what's starred
+    if (showStarredOnly) {
+         return new Map<string, Task[]>([['root', tasks]]);
+    }
+
     const map = new Map<string, Task[]>();
     tasks.forEach(t => {
         const pid = t.parent_id || 'root';
@@ -196,7 +202,7 @@ export default function Tasks() {
         map.get(pid)?.push(t);
     });
     return map;
-  }, [tasks]);
+  }, [tasks, showStarredOnly]);
 
   const rootTasks = (tasksByParent.get('root') || []).sort((a,b) => {
       // Sort: Starred first, then Newest
