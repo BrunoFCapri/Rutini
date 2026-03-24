@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
@@ -11,7 +11,7 @@ interface Task {
   is_starred: boolean;
   due_date?: string;
   list_id?: string;
-  parent_id?: string;
+  parent_id?: string | null;
   created_at?: string;
 }
 
@@ -22,13 +22,161 @@ interface TaskList {
   icon?: string;
 }
 
+interface TaskTreeItemProps {
+  task: Task;
+  level: number;
+  tasksByParent: Map<string, Task[]>;
+  expandedTasks: Set<string>;
+  toggleExpand: (id: string) => void;
+  onSelect: (task: Task) => void;
+  selectedTaskId?: string;
+  onUpdate: (id: string, updates: Partial<Task>) => void;
+  onDelete: (id: string) => void;
+}
+
+const TaskTreeItem = ({
+  task,
+  level,
+  tasksByParent,
+  expandedTasks,
+  toggleExpand,
+  onSelect,
+  selectedTaskId,
+  onUpdate,
+  onDelete
+}: TaskTreeItemProps) => {
+  // Sort children: Active first, then Done
+  const children = (tasksByParent.get(task.id) || []).sort((a,b) => {
+      if (a.status === 'done' && b.status !== 'done') return 1;
+      if (a.status !== 'done' && b.status === 'done') return -1;
+      return (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  });
+  
+  const hasChildren = children.length > 0;
+  const isExpanded = expandedTasks.has(task.id);
+  const isSelected = selectedTaskId === task.id;
+  const isDone = task.status === 'done' || task.status === 'completed';
+
+  return (
+    <>
+      <div 
+        onClick={(e) => { e.stopPropagation(); onSelect(task); }}
+        style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            padding: '8px 12px', 
+            paddingLeft: `${level * 20 + 12}px`,
+            marginBottom: '4px', 
+            borderRadius: '6px',
+            border: '1px solid #334155',
+            cursor: 'pointer',
+            backgroundColor: isSelected ? '#334155' : '#1e293b',
+            opacity: isDone ? 0.7 : 1,
+            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+            transition: 'all 0.2s',
+            position: 'relative'
+        }}
+      >
+         {/* Indentation Guide Line (optional visual cue) */}
+         {level > 0 && (
+             <div style={{
+                 position: 'absolute',
+                 left: `${level * 20 - 10}px`,
+                 top: 0,
+                 bottom: 0,
+                 width: '1px',
+                 backgroundColor: '#334155'
+             }} />
+         )}
+
+         {/* Expand Toggle */}
+         <div 
+            style={{ 
+                width: '20px', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                cursor: 'pointer', 
+                marginRight: '6px',
+                color: '#94a3b8',
+                visibility: hasChildren ? 'visible' : 'hidden'
+            }}
+            onClick={(e) => { e.stopPropagation(); toggleExpand(task.id); }}
+         >
+             {isExpanded ? '▼' : '▶'}
+         </div>
+
+        <input
+            type="checkbox"
+            checked={isDone}
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => onUpdate(task.id, { status: isDone ? 'todo' : 'done' })}
+            style={{ marginRight: '12px', width: '16px', height: '16px', cursor: 'pointer', accentColor: '#38bdf8' }}
+        />
+      
+        <span style={{ 
+            flex: 1, 
+            textDecoration: isDone ? 'line-through' : 'none',
+            color: isDone ? '#94a3b8' : '#f8fafc',
+            fontWeight: 500,
+            fontSize: '0.95rem'
+        }}>
+            {task.title}
+            {task.due_date && (
+                <span style={{ fontSize: '0.75rem', color: new Date(task.due_date) < new Date() && !isDone ? '#f87171' : '#94a3b8', marginLeft: '8px' }}>
+                    📅 {new Date(task.due_date).toLocaleDateString()}
+                </span>
+            )}
+        </span>
+
+        <button 
+            onClick={(e) => {
+                e.stopPropagation();
+                onUpdate(task.id, { is_starred: !task.is_starred });
+            }}
+            style={{ 
+                background: 'none', border: 'none', cursor: 'pointer', 
+                color: task.is_starred ? '#fbbf24' : '#475569', fontSize: '1.1rem', marginRight: '8px'
+            }}
+        >
+            ★
+        </button>
+
+        <button 
+            onClick={(e) => {
+                e.stopPropagation();
+                onDelete(task.id);
+            }}
+            style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 4px' }}
+        >
+            ×
+        </button>
+      </div>
+
+      {isExpanded && children.map(child => (
+          <TaskTreeItem 
+             key={child.id} 
+             task={child} 
+             level={level + 1} 
+             tasksByParent={tasksByParent}
+             expandedTasks={expandedTasks}
+             toggleExpand={toggleExpand}
+             onSelect={onSelect}
+             selectedTaskId={selectedTaskId}
+             onUpdate={onUpdate}
+             onDelete={onDelete}
+          />
+      ))}
+    </>
+  )
+}
+
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [lists, setLists] = useState<TaskList[]>([]);
   const [selectedListId, setSelectedListId] = useState<string | null>(null); // null = All Tasks
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [subtasks, setSubtasks] = useState<Task[]>([]);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newListTitle, setNewListTitle] = useState('');
@@ -38,6 +186,24 @@ export default function Tasks() {
   
   const { token, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // --- Computations ---
+  const tasksByParent = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    tasks.forEach(t => {
+        const pid = t.parent_id || 'root';
+        if (!map.has(pid)) map.set(pid, []);
+        map.get(pid)?.push(t);
+    });
+    return map;
+  }, [tasks]);
+
+  const rootTasks = (tasksByParent.get('root') || []).sort((a,b) => {
+      // Sort: Starred first, then Newest
+      if (a.is_starred && !b.is_starred) return -1;
+      if (!a.is_starred && b.is_starred) return 1;
+      return (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  });
 
   // --- Initial Load ---
   useEffect(() => {
@@ -66,7 +232,15 @@ export default function Tasks() {
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) setTasks(await res.json());
+      if (res.ok) {
+          const data = await res.json();
+          setTasks(data);
+          // If a task is selected, ensure it's updated in local state if refreshed
+          if(selectedTask) {
+              const updated = data.find((t: Task) => t.id === selectedTask.id);
+              if(updated) setSelectedTask(updated);
+          }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -74,37 +248,19 @@ export default function Tasks() {
     }
   };
 
-  const fetchSubtasks = async (taskId: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/tasks?parent_id=${taskId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) setSubtasks(await res.json());
-    } catch (e) { console.error(e); }
-  };
-
   // --- Actions ---
 
-  const handleCreateTask = async (e: React.FormEvent, parentId?: string) => {
-    e.preventDefault();
-    const title = newTaskTitle.trim();
-    if (!title && !parentId) return;
-    // If parentId is present, we might use a different input ref, but let's assume we use state or passed value
-    // For simplicity in this monolithic replacement, we'll use newTaskTitle for main tasks
-    // and handle subtasks separately in the UI render to avoid complexity.
-    
-    // Wait, the subtask form below uses a separate input but calls this handler? 
-    // Actually, let's fix the subtask creation to be robust.
-    
-    // If called from main form:
-    if(!parentId && !title) return;
-    
-    // If called from subtask form (we'll handle extraction there or pass title)
-    // Let's refactor:
+  const toggleExpand = (id: string) => {
+      setExpandedTasks(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(id)) newSet.delete(id);
+          else newSet.add(id);
+          return newSet;
+      });
   };
-  
+
   const createNewTask = async (title: string, parentId?: string) => {
-      try {
+    try {
       const body: any = { 
         title, 
         list_id: selectedListId, 
@@ -124,10 +280,11 @@ export default function Tasks() {
       
       const newTask = await res.json();
       
+      setTasks(prev => [newTask, ...prev]);
+      
+      // Auto-expand parent if subtask created
       if (parentId) {
-        setSubtasks([...subtasks, newTask]);
-      } else {
-        setTasks([newTask, ...tasks]);
+          setExpandedTasks(prev => new Set(prev).add(parentId));
       }
     } catch (err: any) {
       setError(err.message);
@@ -135,41 +292,87 @@ export default function Tasks() {
   }
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
+    // Prepare updates locally
+    const updatesMap = new Map<string, Partial<Task>>();
+    updatesMap.set(id, updates);
+
+    // If changing status (done/todo), cascade to all descendants
+    if (updates.status) {
+        const getDescendants = (parentId: string): string[] => {
+            let ids: string[] = [];
+            const children = tasksByParent.get(parentId) || [];
+            children.forEach(child => {
+                ids.push(child.id);
+                ids = [...ids, ...getDescendants(child.id)];
+            });
+            return ids;
+        };
+
+        const descendants = getDescendants(id);
+        descendants.forEach(dId => {
+            updatesMap.set(dId, { status: updates.status });
+        });
+    }
+
     // Optimistic UI
-    setTasks(tasks.map(t => t.id === id ? { ...t, ...updates } : t));
-    if (selectedTask?.id === id) setSelectedTask({ ...selectedTask, ...updates });
-    // Also update subtasks if present
-    setSubtasks(subtasks.map(t => t.id === id ? { ...t, ...updates } : t));
+    setTasks(prev => prev.map(t => {
+        const specificUpdates = updatesMap.get(t.id);
+        return specificUpdates ? { ...t, ...specificUpdates } : t;
+    }));
+    
+    // Update selectedTask if needed
+    if (selectedTask) {
+        const specificUpdates = updatesMap.get(selectedTask.id);
+        if (specificUpdates) {
+             setSelectedTask({ ...selectedTask, ...specificUpdates });
+        }
+    }
 
     try {
-      await fetch(`${API_URL}/api/tasks/${id}`, {
-        method: 'PATCH',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(updates)
-      });
+      // Execute all updates
+      await Promise.all(Array.from(updatesMap.entries()).map(([taskId, taskUpdates]) => 
+          fetch(`${API_URL}/api/tasks/${taskId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(taskUpdates)
+          })
+      ));
     } catch (e) {
       fetchTasks(); // Revert on error
     }
   };
 
-  const handleDeleteTask = async (id: string, isSubtask = false) => {
-    if (!confirm('Delete this task?')) return;
+  const handleDeleteTask = async (id: string) => {
+    if (!confirm('Delete this task and all its subtasks?')) return;
+    
+    // Calculate all IDs to remove for Optimistic UI
+    const getDescendants = (parentId: string): string[] => {
+        let ids: string[] = [];
+        const children = tasksByParent.get(parentId) || [];
+        children.forEach(child => {
+            ids.push(child.id);
+            ids = [...ids, ...getDescendants(child.id)];
+        });
+        return ids;
+    };
+    const idsToRemove = new Set([id, ...getDescendants(id)]);
+
+    // Optimistic Update
+    setTasks(prev => prev.filter(t => !idsToRemove.has(t.id)));
+    if (selectedTask && idsToRemove.has(selectedTask.id)) setSelectedTask(null);
+
     try {
       await fetch(`${API_URL}/api/tasks/${id}`, {
          method: 'DELETE',
          headers: { 'Authorization': `Bearer ${token}` }
       });
-      
-      if (isSubtask) {
-          setSubtasks(subtasks.filter(t => t.id !== id));
-      } else {
-          setTasks(tasks.filter(t => t.id !== id));
-          if (selectedTask?.id === id) setSelectedTask(null);
-      }
-    } catch (e) { setError('Failed to delete'); }
+    } catch (e) { 
+        setError('Failed to delete'); 
+        fetchTasks(); // Revert
+    }
   };
 
   const handleCreateList = async (e: React.FormEvent) => {
@@ -186,90 +389,17 @@ export default function Tasks() {
             const newList = await res.json();
             setLists([...lists, newList]);
             setNewListTitle('');
-        } else {
-            console.error('Failed to create list', res.status, await res.text());
-            alert('Failed to create list. Please try again.');
         }
     } catch (e) { 
         console.error(e);
-        alert('Error creating list.');
     }
   };
 
-  // --- UI Components ---
-
-  const TaskItem = ({ task, isSubtask = false }: { task: Task, isSubtask?: boolean }) => (
-    <div 
-        onClick={() => {
-            setSelectedTask(task);
-            fetchSubtasks(task.id);
-        }}
-        style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            padding: '12px', 
-            marginBottom: '0', 
-            borderRadius: '6px',
-            border: '1px solid #e2e8f0',
-            cursor: 'pointer',
-            backgroundColor: selectedTask?.id === task.id ? '#e0f2fe' : (task.status === 'done' ? '#f8fafc' : 'white'),
-            opacity: task.status === 'done' ? 0.7 : 1,
-            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-            transition: 'all 0.2s'
-        }}
-    >
-      <input
-        type="checkbox"
-        checked={task.status === 'done' || task.status === 'completed'}
-        onClick={(e) => e.stopPropagation()}
-        onChange={() => updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' })}
-        style={{ marginRight: '12px', width: '18px', height: '18px', cursor: 'pointer', accentColor: '#3b82f6' }}
-      />
-      
-      <span style={{ 
-          flex: 1, 
-          textDecoration: task.status === 'done' ? 'line-through' : 'none',
-          color: task.status === 'done' ? '#94a3b8' : '#334155',
-          fontWeight: 500
-      }}>
-        {task.title}
-        {task.due_date && (
-            <div style={{ fontSize: '0.75rem', color: new Date(task.due_date) < new Date() && task.status !== 'done' ? '#ef4444' : '#64748b', marginTop: '2px' }}>
-                📅 {new Date(task.due_date).toLocaleDateString()}
-            </div>
-        )}
-      </span>
-
-      <button 
-        onClick={(e) => {
-            e.stopPropagation();
-            updateTask(task.id, { is_starred: !task.is_starred });
-        }}
-        style={{ 
-            background: 'none', border: 'none', cursor: 'pointer', 
-            color: task.is_starred ? '#f59e0b' : '#d1d5db', fontSize: '1.2rem', marginRight: '10px'
-        }}
-      >
-        ★
-      </button>
-
-      <button 
-        onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteTask(task.id, isSubtask);
-        }}
-        style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
-      >
-        ×
-      </button>
-    </div>
-  );
-
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f8fafc' }}>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#0f172a' }}>
       
       {/* Sidebar - Lists */}
-      <div style={{ width: '250px', backgroundColor: '#1e293b', color: 'white', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: '250px', backgroundColor: '#1e293b', color: 'white', padding: '20px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #334155' }}>
         <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#f1f5f9' }}>Task Lists</h2>
         
         <div 
@@ -332,7 +462,7 @@ export default function Tasks() {
                     padding: '8px', 
                     borderRadius: '4px', 
                     border: '1px solid #475569', 
-                    backgroundColor: '#1e293b', 
+                    backgroundColor: '#0f172a', 
                     color: 'white',
                     outline: 'none'
                 }}
@@ -340,15 +470,7 @@ export default function Tasks() {
             <button 
                 type="submit"
                 disabled={!newListTitle.trim()}
-                style={{
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    padding: '0 10px',
-                    cursor: newListTitle.trim() ? 'pointer' : 'default',
-                    opacity: newListTitle.trim() ? 1 : 0.5
-                }}
+                style={{ backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', padding: '0 10px', cursor: 'pointer' }}
             >
                 +
             </button>
@@ -360,49 +482,100 @@ export default function Tasks() {
       </div>
 
       {/* Main Content - Tasks */}
-      <div style={{ flex: 1, padding: '30px', overflowY: 'auto', borderRight: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-        <h1 style={{ marginBottom: '20px', color: '#0f172a' }}>
+      <div style={{ flex: 1, padding: '30px', overflowY: 'auto', borderRight: '1px solid #334155', backgroundColor: '#0f172a' }}>
+        <h1 style={{ marginBottom: '20px', color: '#f8fafc' }}>
             {showStarredOnly ? 'Starred Tasks' : (selectedListId ? lists.find(l => l.id === selectedListId)?.title : 'All Tasks')}
         </h1>
+        
+        {loading && <div style={{ color: '#94a3b8', marginBottom: '10px' }}>Loading tasks...</div>}
+        {error && <div style={{ color: '#ef4444', marginBottom: '10px' }}>Error: {error}</div>}
         
         <form onSubmit={(e) => { e.preventDefault(); if(newTaskTitle.trim()) { createNewTask(newTaskTitle.trim()); setNewTaskTitle(''); } }} style={{ marginBottom: '20px' }}>
             <input 
                 value={newTaskTitle}
                 onChange={e => setNewTaskTitle(e.target.value)}
                 placeholder="Add a new task..."
-                style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '1rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    borderRadius: '6px', 
+                    border: '1px solid #334155', 
+                    fontSize: '1rem', 
+                    backgroundColor: '#1e293b', 
+                    color: '#f8fafc',
+                    outline: 'none'
+                }}
             />
         </form>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {tasks.filter(t => t.status !== 'done').map(task => <TaskItem key={task.id} task={task} />)}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {/* Active Tasks Tree */}
+            {rootTasks.filter(t => t.status !== 'done').map(task => (
+                <TaskTreeItem 
+                    key={task.id} 
+                    task={task} 
+                    level={0}
+                    tasksByParent={tasksByParent}
+                    expandedTasks={expandedTasks}
+                    toggleExpand={toggleExpand}
+                    onSelect={setSelectedTask}
+                    selectedTaskId={selectedTask?.id}
+                    onUpdate={updateTask}
+                    onDelete={handleDeleteTask}
+                />
+            ))}
             
-            {tasks.some(t => t.status === 'done') && (
+            {/* Completed Tasks Tree (Roots) */}
+            {tasks.some(t => t.status === 'done' && !t.parent_id) && (
                 <div style={{ marginTop: '30px' }}>
                     <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '10px' }}>Completed</h3>
-                    {tasks.filter(t => t.status === 'done').map(task => <TaskItem key={task.id} task={task} />)}
+                    {rootTasks.filter(t => t.status === 'done').map(task => (
+                        <TaskTreeItem 
+                            key={task.id} 
+                            task={task} 
+                            level={0}
+                            tasksByParent={tasksByParent}
+                            expandedTasks={expandedTasks}
+                            toggleExpand={toggleExpand}
+                            onSelect={setSelectedTask}
+                            selectedTaskId={selectedTask?.id}
+                            onUpdate={updateTask}
+                            onDelete={handleDeleteTask}
+                        />
+                    ))}
                 </div>
             )}
 
-            {tasks.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>No tasks found in this view.</div>}
+            {tasks.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>No tasks found.</div>}
         </div>
       </div>
 
       {/* Right Panel - Details */}
       {selectedTask && (
-        <div style={{ width: '350px', backgroundColor: 'white', padding: '20px', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: '350px', backgroundColor: '#1e293b', padding: '20px', borderLeft: '1px solid #334155', display: 'flex', flexDirection: 'column', color: '#f8fafc' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0 }}>Task Details</h3>
-                <button onClick={() => setSelectedTask(null)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer' }}>×</button>
+                <h3 style={{ margin: 0, color: '#f8fafc' }}>Task Details</h3>
+                <button onClick={() => setSelectedTask(null)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#94a3b8' }}>×</button>
             </div>
 
             <input 
                 value={selectedTask.title}
                 onChange={(e) => updateTask(selectedTask.id, { title: e.target.value })}
-                style={{ fontSize: '1.1rem', fontWeight: 'bold', border: 'none', borderBottom: '1px solid #e2e8f0', padding: '5px 0', marginBottom: '15px', width: '100%', outline: 'none' }}
+                style={{ 
+                    fontSize: '1.1rem', 
+                    fontWeight: 'bold', 
+                    border: 'none', 
+                    borderBottom: '1px solid #334155', 
+                    padding: '5px 0', 
+                    marginBottom: '15px', 
+                    width: '100%', 
+                    outline: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#f8fafc'
+                }}
             />
 
-            <label style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '5px', display: 'block' }}>Due Date</label>
+            <label style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '5px', display: 'block' }}>Due Date</label>
             <input 
                 type="date"
                 value={selectedTask.due_date ? selectedTask.due_date.split('T')[0] : ''}
@@ -410,20 +583,56 @@ export default function Tasks() {
                     const date = e.target.value ? new Date(e.target.value).toISOString() : undefined;
                     updateTask(selectedTask.id, { due_date: date });
                 }}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', marginBottom: '20px', color: '#334155' }}
+                style={{ 
+                    width: '100%', 
+                    padding: '8px', 
+                    borderRadius: '4px', 
+                    border: '1px solid #334155', 
+                    marginBottom: '20px', 
+                    color: '#f8fafc',
+                    backgroundColor: '#0f172a',
+                    colorScheme: 'dark'
+                }}
             />
 
-            <label style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '5px' }}>Description / Notes</label>
+            <label style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '5px' }}>Description / Notes</label>
             <textarea 
                 value={selectedTask.description || ''}
                 onChange={(e) => updateTask(selectedTask.id, { description: e.target.value })}
                 placeholder="Add notes..."
-                style={{ width: '100%', minHeight: '100px', padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1', marginBottom: '20px', resize: 'vertical' }}
+                style={{ 
+                    width: '100%', 
+                    minHeight: '100px', 
+                    padding: '10px', 
+                    borderRadius: '4px', 
+                    border: '1px solid #334155', 
+                    marginBottom: '20px', 
+                    resize: 'vertical',
+                    backgroundColor: '#0f172a',
+                    color: '#f8fafc'
+                }}
             />
 
-            <label style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '5px' }}>Subtasks</label>
+            <label style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '5px' }}>Subtasks</label>
             <div style={{ marginBottom: '20px' }}>
-                {subtasks.map(st => <TaskItem key={st.id} task={st} isSubtask={true} />)}
+                {(tasksByParent.get(selectedTask.id) || []).map(st => (
+                    <div 
+                        key={st.id} 
+                        style={{ display: 'flex', alignItems: 'center', padding: '6px', borderBottom: '1px solid #334155', fontSize: '0.9rem' }}
+                    >
+                         <input
+                            type="checkbox"
+                            checked={st.status === 'done'}
+                            onChange={() => updateTask(st.id, { status: st.status === 'done' ? 'todo' : 'done' })}
+                            style={{ marginRight: '8px' }}
+                        />
+                        <span style={{ 
+                            textDecoration: st.status === 'done' ? 'line-through' : 'none', 
+                            color: st.status === 'done' ? '#64748b' : '#cbd5e1',
+                            flex: 1 
+                        }}>{st.title}</span>
+                    </div>
+                ))}
                 
                 <form 
                     onSubmit={(e) => {
@@ -436,14 +645,24 @@ export default function Tasks() {
                     }} 
                     style={{ marginTop: '10px', display: 'flex' }}
                 >
-                    <input placeholder="Add subtask..." style={{ flex: 1, padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                    <button type="submit" style={{ marginLeft: '5px', padding: '5px 10px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+</button>
+                    <input 
+                        placeholder="Add subtask..." 
+                        style={{ 
+                            flex: 1, 
+                            padding: '5px', 
+                            borderRadius: '4px', 
+                            border: '1px solid #334155',
+                            backgroundColor: '#0f172a',
+                            color: '#f8fafc'
+                        }} 
+                    />
+                    <button type="submit" style={{ marginLeft: '5px', padding: '5px 10px', backgroundColor: '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', color: 'white' }}>+</button>
                 </form>
             </div>
 
             <div style={{ flex: 1 }}></div>
             
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
                 Created: {new Date(selectedTask.created_at || '').toLocaleDateString()}
             </div>
         </div>
