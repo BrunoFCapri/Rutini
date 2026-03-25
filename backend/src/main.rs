@@ -42,12 +42,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redis_url = std::env::var("REDIS_URL")
         .unwrap_or_else(|_| "redis://localhost:6379/".to_string());
 
-    // Connect to Postgres
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to Postgres");
+    // Connect to Postgres with retries
+    let pool = loop {
+        match PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await
+        {
+            Ok(pool) => break pool,
+            Err(e) => {
+                tracing::error!("Failed to connect to Postgres: {}. Retrying in 5 seconds...", e);
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        }
+    };
 
     tracing::info!("Running migrations...");
     sqlx::migrate!("./migrations")
