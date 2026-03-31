@@ -242,6 +242,27 @@ const TaskTreeItem = ({
 }
 
 export default function Tasks() {
+    // Descarga de adjuntos con autorización
+    const handleDownloadAttachment = async (att: TaskAttachment) => {
+        if (!selectedTask) return;
+        try {
+            const res = await fetch(`${API_URL}/api/tasks/${selectedTask.id}/attachments/${att.id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = att.filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            alert('Error downloading file');
+        }
+    };
 
     const [tasks, setTasks] = useState<Task[]>([]);
     const [lists, setLists] = useState<TaskList[]>([]);
@@ -794,14 +815,13 @@ export default function Tasks() {
                                 {attachments.length === 0 && <li style={{ color: '#64748b', fontSize: '0.9rem' }}>No files uploaded.</li>}
                                 {attachments.map(att => (
                                     <li key={att.id} style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <a
-                                            href={`${API_URL}/api/tasks/${selectedTask.id}/attachments/${att.id}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{ color: '#38bdf8', textDecoration: 'underline', fontSize: '0.97rem', wordBreak: 'break-all' }}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDownloadAttachment(att)}
+                                            style={{ color: '#38bdf8', textDecoration: 'underline', fontSize: '0.97rem', wordBreak: 'break-all', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                                         >
                                             {att.filename}
-                                        </a>
+                                        </button>
                                         <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{att.mime_type || ''}</span>
                                     </li>
                                 ))}
