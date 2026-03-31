@@ -9,6 +9,25 @@ interface TaskAttachment {
 
 // Custom hook para manejar los attachments de tareas
 function useTaskAttachments(selectedTask: Task | null, token: string) {
+
+        // Eliminar attachment
+        const handleDeleteAttachment = async (attId: string) => {
+            if (!selectedTask) return;
+            if (!window.confirm('Are you sure you want to delete this file?')) return;
+            try {
+                const res = await fetch(`${API_URL}/api/tasks/${selectedTask.id}/attachments/${attId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    setAttachments(prev => prev.filter(a => a.id !== attId));
+                } else {
+                    alert('Failed to delete file');
+                }
+            } catch {
+                alert('Failed to delete file');
+            }
+        };
     const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -55,7 +74,7 @@ function useTaskAttachments(selectedTask: Task | null, token: string) {
         }
     };
 
-    return { attachments, setAttachments, uploading, setUploading, fileInputRef, handleFileUpload };
+    return { attachments, setAttachments, uploading, setUploading, fileInputRef, handleFileUpload, handleDeleteAttachment };
 }
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -823,6 +842,14 @@ export default function Tasks() {
                                             {att.filename}
                                         </button>
                                         <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{att.mime_type || ''}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteAttachment(att.id)}
+                                            style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', marginLeft: '8px' }}
+                                            title="Delete file"
+                                        >
+                                            🗑️
+                                        </button>
                                     </li>
                                 ))}
                             </ul>
