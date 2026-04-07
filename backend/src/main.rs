@@ -4,14 +4,13 @@ mod notes;
 mod calendar;
 
 use axum::{
-    extract::{Path, State},
-    routing::{get, post, patch, delete},
+    extract::{State},
+    routing::{get, post, patch},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::net::SocketAddr;
-use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt as _, util::SubscriberInitExt as _};
 
@@ -85,6 +84,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Tasks
         .route("/api/tasks", get(tasks::list_tasks).post(tasks::create_task))
         .route("/api/tasks/:id", patch(tasks::update_task).delete(tasks::delete_task))
+        // Task Attachments
+        .route("/api/tasks/:id/attachments", post(tasks::upload_task_attachment).get(tasks::list_task_attachments))
+        .route("/api/tasks/:id/attachments/:attachment_id", get(tasks::download_task_attachment).delete(tasks::delete_task_attachment))
         // Lists
         .route("/api/lists", get(tasks::get_lists).post(tasks::create_list))
         .route("/api/lists/:id", patch(tasks::update_list).delete(tasks::delete_list))

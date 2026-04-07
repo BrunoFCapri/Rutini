@@ -1,3 +1,31 @@
+// Handler para eliminar un adjunto de una tarea
+pub async fn delete_task_attachment(
+    State(state): State<AppState>,
+    Path((task_id, attachment_id)): Path<(Uuid, Uuid)>,
+    claims: Claims,
+) -> Result<StatusCode, (StatusCode, String)> {
+    // Verifica que la tarea exista y pertenezca al usuario
+    let task: Option<Task> = sqlx::query_as("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
+        .bind(task_id)
+        .bind(claims.user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if task.is_none() {
+        return Err((StatusCode::NOT_FOUND, "Task not found or not owned by user".to_string()));
+    }
+    let result = sqlx::query("DELETE FROM task_attachments WHERE id = $1 AND task_id = $2")
+        .bind(attachment_id)
+        .bind(task_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if result.rows_affected() == 0 {
+        return Err((StatusCode::NOT_FOUND, "Attachment not found".to_string()));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+use sqlx::Row;
 use axum::{
     extract::{Path, State, Query},
     http::StatusCode,
@@ -9,6 +37,10 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use crate::AppState;
 use crate::users::Claims;
+
+use axum::extract::multipart::Multipart;
+use axum::response::{IntoResponse, Response};
+use axum::http::{header, HeaderMap, HeaderValue};
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct Task {
@@ -85,6 +117,125 @@ pub struct TaskFilter {
     pub list_id: Option<Uuid>,
     pub is_starred: Option<bool>,
     pub parent_id: Option<Uuid>,
+}
+
+// --- Attachments ---
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct TaskAttachment {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub filename: String,
+    pub mime_type: Option<String>,
+    pub uploaded_at: Option<DateTime<Utc>>,
+}
+
+// Handler para subir archivos adjuntos a una tarea
+// Multipart debe ser el último extractor
+pub async fn upload_task_attachment(
+    State(state): State<AppState>,
+    Path(task_id): Path<Uuid>,
+    claims: Claims,
+    mut multipart: Multipart,
+) -> Result<Json<TaskAttachment>, (StatusCode, String)> {
+    // Solo permite un archivo por request
+    if let Some(field) = multipart.next_field().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+        let filename = field.file_name().map(|s| s.to_string()).unwrap_or("attachment".to_string());
+        let mime_type = field.content_type().map(|s| s.to_string());
+        let data = field.bytes().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?.to_vec();
+
+        // Verifica que la tarea exista y pertenezca al usuario
+        let task: Option<Task> = sqlx::query_as("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
+            .bind(task_id)
+            .bind(claims.user_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if task.is_none() {
+            return Err((StatusCode::NOT_FOUND, "Task not found or not owned by user".to_string()));
+        }
+
+        let attachment: TaskAttachment = sqlx::query_as(
+            r#"
+            INSERT INTO task_attachments (task_id, filename, mime_type, data)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, task_id, filename, mime_type, uploaded_at
+            "#
+        )
+        .bind(task_id)
+        .bind(&filename)
+        .bind(&mime_type)
+        .bind(&data[..])
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        return Ok(Json(attachment));
+    }
+    Err((StatusCode::BAD_REQUEST, "No file uploaded".to_string()))
+}
+
+// Handler para listar adjuntos de una tarea
+pub async fn list_task_attachments(
+    State(state): State<AppState>,
+    Path(task_id): Path<Uuid>,
+    claims: Claims,
+) -> Result<Json<Vec<TaskAttachment>>, (StatusCode, String)> {
+    // Verifica que la tarea exista y pertenezca al usuario
+    let task: Option<Task> = sqlx::query_as("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
+        .bind(task_id)
+        .bind(claims.user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if task.is_none() {
+        return Err((StatusCode::NOT_FOUND, "Task not found or not owned by user".to_string()));
+    }
+    let attachments = sqlx::query_as::<_, TaskAttachment>(
+        "SELECT id, task_id, filename, mime_type, uploaded_at FROM task_attachments WHERE task_id = $1 ORDER BY uploaded_at DESC"
+    )
+    .bind(task_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(attachments))
+}
+
+// Handler para descargar un adjunto
+pub async fn download_task_attachment(
+    State(state): State<AppState>,
+    Path((task_id, attachment_id)): Path<(Uuid, Uuid)>,
+    claims: Claims,
+) -> Result<Response, (StatusCode, String)> {
+    // Verifica que la tarea exista y pertenezca al usuario
+    let task: Option<Task> = sqlx::query_as("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
+        .bind(task_id)
+        .bind(claims.user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if task.is_none() {
+        return Err((StatusCode::NOT_FOUND, "Task not found or not owned by user".to_string()));
+    }
+    let row = sqlx::query(
+        "SELECT filename, mime_type, data FROM task_attachments WHERE id = $1 AND task_id = $2"
+    )
+    .bind(attachment_id)
+    .bind(task_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if let Some(att) = row {
+        let filename: String = att.try_get("filename").unwrap_or("attachment".to_string());
+        let mime_type: Option<String> = att.try_get("mime_type").ok();
+        let data: Vec<u8> = att.try_get("data").unwrap_or_default();
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CONTENT_TYPE, HeaderValue::from_str(mime_type.as_deref().unwrap_or("application/octet-stream")).unwrap());
+        headers.insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename)).unwrap());
+        Ok((headers, data).into_response())
+    } else {
+        Err((StatusCode::NOT_FOUND, "Attachment not found".to_string()))
+    }
 }
 
 // --- List Handlers ---

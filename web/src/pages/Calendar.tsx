@@ -104,7 +104,7 @@ export default function Calendar() {
       const firstDay = new Date(year, month, 1);
       const lastDay = new Date(year, month + 1, 0);
       
-      const days = [];
+      const days: { date: Date; isCurrentMonth: boolean }[] = [];
       // Fill previous month days to start on Monday (or Sunday)
       let startDay = firstDay.getDay(); // 0-6
       const offset = startDay === 0 ? 6 : startDay - 1; // 0=Mon, 6=Sun
@@ -429,7 +429,6 @@ export default function Calendar() {
                             minHeight: '100px'
                         }}>
                             <div style={{ 
-                                textAlign: 'right', 
                                 marginBottom: '5px', 
                                 color: isSameDate(dayObj.date, new Date()) ? '#3b82f6' : 'inherit', 
                                 fontWeight: isSameDate(dayObj.date, new Date()) ? 'bold' : 'normal',

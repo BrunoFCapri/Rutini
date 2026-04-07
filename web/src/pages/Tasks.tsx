@@ -296,7 +296,7 @@ export default function Tasks() {
     const { token, isAuthenticated } = useAuth();
 
     // Hook para adjuntos de tareas (debe ir después de declarar selectedTask y token)
-    const { attachments, uploading, fileInputRef, handleFileUpload } = useTaskAttachments(selectedTask, token ?? '');
+    const { attachments, uploading, fileInputRef, handleFileUpload, handleDeleteAttachment } = useTaskAttachments(selectedTask, token ?? '');
   const navigate = useNavigate();
 
   // --- Initial Load ---

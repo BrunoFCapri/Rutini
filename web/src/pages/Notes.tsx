@@ -36,7 +36,6 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const imageContainerRef = useRef<HTMLDivElement>(null);
     const noteContainerRef = useRef<HTMLDivElement>(null);
-    const [isMouseDown, setIsMouseDown] = useState(false);
 
     useLayoutEffect(() => {
         if (textareaRef.current) {
@@ -232,9 +231,6 @@ const BlockInput = ({ block, index, isFocused, isSelected, updateBlock, onKeyDow
                 value={block.content || ''}
                 onChange={e => updateBlock(block.id, e.target.value)}
                 onKeyDown={handleKeyDown}
-                onFocus={(e) => {
-                    // If focus came from click, we might want to wait for click event to handle shift
-                }}
                 onClick={(e) => {
                      onManualFocus(e.shiftKey);
                 }}
@@ -400,8 +396,6 @@ export default function Notes() {
     const isStructureChange = blocks.length !== currentTip?.length || 
                               blocks.some((b, i) => b.id !== currentTip[i]?.id || b.type !== currentTip[i]?.type);
 
-    let isWordBreak = false;
-    
     // Structure change -> Fast (50ms)
     // Word break (Space/Enter) -> Fast (100ms)
     // Typing -> Slow (800ms)
@@ -644,7 +638,6 @@ export default function Notes() {
         catch { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
     };
 
-    const subNoteId = safeGenerateId();
     const initialBlocks = [{ id: safeGenerateId(), type: 'text', content: "" }];
     const newNote = { title: "Untitled Subpage", content: initialBlocks, parent_id: selectedNote.id };
 
