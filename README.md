@@ -1,4 +1,4 @@
-# V-NYCH
+# V-NYCH 🪲
 
 Una infraestructura de productividad integral, multiplataforma y de alto rendimiento desarrollada desde cero. V-NYCH toma su identidad del manuscrito de Voynich y reemplaza la dependencia de servicios de terceros (Google Calendar, Notion, Google Tasks) mediante una arquitectura de microservicios soberana, diseñada para la eficiencia extrema en hardware local (**Raspberry Pi 5 / CapiOS**).
 
