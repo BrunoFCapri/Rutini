@@ -27,8 +27,10 @@ function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [beetleState, setBeetleState] = useState<'idle' | 'online' | 'offline'>('idle');
   const [beetleAnimationKey, setBeetleAnimationKey] = useState(0);
+  const [beetleSubtle, setBeetleSubtle] = useState(false);
   const hasBeenOnline = useRef(false);
   const wasConnectedRef = useRef(false);
+  const subtleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { logout, user } = useAuth();
   const navigate = useNavigate();
 
@@ -86,11 +88,21 @@ function Dashboard() {
   useEffect(() => {
     const wasConnected = wasConnectedRef.current;
 
+    if (subtleTimerRef.current) {
+      clearTimeout(subtleTimerRef.current);
+      subtleTimerRef.current = null;
+    }
+
     if (allServicesConnected && !wasConnected) {
       hasBeenOnline.current = true;
+      setBeetleSubtle(false);
       setBeetleState('online');
       setBeetleAnimationKey((prev) => prev + 1);
+      subtleTimerRef.current = setTimeout(() => {
+        setBeetleSubtle(true);
+      }, 2500);
     } else if (!allServicesConnected && wasConnected && hasBeenOnline.current) {
+      setBeetleSubtle(false);
       setBeetleState('offline');
       setBeetleAnimationKey((prev) => prev + 1);
     }
@@ -98,8 +110,17 @@ function Dashboard() {
     wasConnectedRef.current = allServicesConnected;
   }, [allServicesConnected]);
 
+  useEffect(() => {
+    return () => {
+      if (subtleTimerRef.current) {
+        clearTimeout(subtleTimerRef.current);
+      }
+    };
+  }, []);
+
   const beetleStateClass =
     beetleState === 'online' ? 'beetle-offline' : beetleState === 'offline' ? 'beetle-online' : '';
+  const beetleSubtleClass = beetleSubtle ? 'beetle-subtle' : '';
 
   return (
     <div className="container">
@@ -114,7 +135,7 @@ function Dashboard() {
       
       <main className="dashboard">
         <section className="card">
-          <div key={beetleAnimationKey} className={`beetle-logo ${beetleStateClass}`} aria-hidden="true">
+          <div key={beetleAnimationKey} className={`beetle-logo ${beetleStateClass} ${beetleSubtleClass}`} aria-hidden="true">
             <img className="beetle-wing beetle-wing-left" src={beetleWingLeft} alt="" />
             <img className="beetle-wing beetle-wing-right" src={beetleWingRight} alt="" />
             <img className="beetle-part beetle-torso" src={beetleTorso} alt="" />
