@@ -1,4 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
+import { folderIcon, homeIcon, starIcon, taskIcon } from '../assets/icons';
 
 interface TaskAttachment {
     id: string;
@@ -76,9 +80,6 @@ function useTaskAttachments(selectedTask: Task | null, token: string) {
 
     return { attachments, setAttachments, uploading, setUploading, fileInputRef, handleFileUpload, handleDeleteAttachment };
 }
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../config';
 
 interface Task {
   id: string;
@@ -555,7 +556,10 @@ export default function Tasks() {
       
       {/* Sidebar - Lists */}
       <div style={{ width: '250px', backgroundColor: 'var(--card-bg)', color: 'white', padding: '20px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }}>
-        <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--text-primary)' }}>Task Lists</h2>
+        <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img src={taskIcon} alt="Task lists" style={{ width: '20px', height: '20px', borderRadius: '4px' }} />
+            Task Lists
+        </h2>
         
         <div 
             onClick={() => { setSelectedListId(null); setShowStarredOnly(false); }}
@@ -568,7 +572,8 @@ export default function Tasks() {
                 color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px'
             }}
         >
-            📑 All Tasks
+            <img src={folderIcon} alt="All tasks" style={{ width: '18px', height: '18px', borderRadius: '4px' }} />
+            All Tasks
         </div>
         
         <div 
@@ -582,7 +587,8 @@ export default function Tasks() {
                 color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px'
             }}
         >
-            ⭐ Starred
+            <img src={starIcon} alt="Starred" style={{ width: '18px', height: '18px', borderRadius: '4px' }} />
+            Starred
         </div>
 
         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '10px', fontWeight: 'bold' }}>Your Lists</div>
@@ -602,7 +608,12 @@ export default function Tasks() {
                         color: selectedListId === list.id ? 'white' : 'var(--text-secondary)'
                     }}
                 >
-                    <span>{list.icon || '📂'}</span> {list.title}
+                    {list.icon ? (
+                        <span>{list.icon}</span>
+                    ) : (
+                        <img src={folderIcon} alt="List" style={{ width: '16px', height: '16px', borderRadius: '3px' }} />
+                    )}
+                    {list.title}
                 </div>
             ))}
         </div>
@@ -631,7 +642,8 @@ export default function Tasks() {
             </button>
         </form>
 
-        <button onClick={() => navigate('/')} style={{ marginTop: '20px', padding: '10px', backgroundColor: 'var(--border)', color: 'var(--text-secondary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+        <button onClick={() => navigate('/')} style={{ marginTop: '20px', padding: '10px', backgroundColor: 'var(--border)', color: 'var(--text-secondary)', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <img src={homeIcon} alt="Dashboard" style={{ width: '18px', height: '18px', borderRadius: '4px' }} />
             Back to Dashboard
         </button>
       </div>

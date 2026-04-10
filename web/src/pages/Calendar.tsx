@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
+import { arrowIcon, calendarIcon } from '../assets/icons';
 
 interface CalendarEvent {
   id: string;
@@ -509,9 +510,13 @@ export default function Calendar() {
                     gap: '4px'
                 }}
             >
-                ← Back
+                <img src={arrowIcon} alt="Back" style={{ width: '18px', height: '18px', borderRadius: '4px' }} />
+                Back
             </button>
-            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Calendar</h1>
+            <h1 style={{ margin: 0, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src={calendarIcon} alt="Calendar" style={{ width: '26px', height: '26px', borderRadius: '6px' }} />
+                Calendar
+            </h1>
             <div className="view-controls" style={{ display: 'flex', gap: '5px', backgroundColor: 'var(--card-bg)', padding: '4px', borderRadius: '6px' }}>
                 {(['day', 'week', 'month'] as ViewMode[]).map(mode => (
                     <button 

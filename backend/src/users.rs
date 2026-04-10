@@ -74,7 +74,7 @@ impl FromRequestParts<AppState> for Claims {
         }
 
         let token = &auth_header["Bearer ".len()..];
-
+        
         let token_data = decode::<Claims>(
             token,
             &DecodingKey::from_secret(JWT_SECRET),

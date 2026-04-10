@@ -37,11 +37,229 @@ h1 {
   gap: 2rem;
 }
 
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+
+.action-btn img {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 .card {
   background-color: var(--card-bg);
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.beetle-logo {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  height: 268px;
+  margin: 0 auto 1.25rem;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.beetle-part,
+.beetle-wing {
+  position: absolute;
+  display: block;
+}
+
+.beetle-torso {
+  width: 150px;
+  left: 50%;
+  top: -4px;
+  transform: translateX(-50%);
+  z-index: 10;
+  clip-path: none;
+}
+
+.beetle-shell-left {
+  width: 160px;
+  left: calc(50% - 160px  );
+  top: 114px;
+  z-index: 6;
+  transform-origin: 90% 12%;
+  will-change: transform;
+}
+
+.beetle-shell-right {
+  width: 160px;
+  left: calc(50% + 1px);
+  top: 114px;
+  z-index: 6;
+  transform-origin: 10% 12%;
+  will-change: transform;
+}
+
+.beetle-wing-left {
+  width: 170px;
+  left: calc(50% - 244px);
+  top: 110px;
+  z-index: 2;
+  transform-origin: 100% 8%;
+  will-change: transform;
+}
+
+.beetle-wing-right {
+  width: 170px;
+  left: calc(50% + 74px);
+  top: 110px;
+  z-index: 2;
+  transform-origin: 0% 8%;
+  will-change: transform;
+}
+
+.beetle-logo.beetle-online .beetle-shell-left {
+  animation: shell-left-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 forwards;
+}
+
+.beetle-logo.beetle-online .beetle-shell-right {
+  animation: shell-right-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 forwards;
+}
+
+.beetle-logo.beetle-online .beetle-wing-left {
+  animation: wing-left-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 forwards;
+}
+
+.beetle-logo.beetle-online .beetle-wing-right {
+  animation: wing-right-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 forwards;
+}
+
+.beetle-logo.beetle-offline .beetle-shell-left {
+  animation: shell-left-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 reverse forwards;
+}
+
+.beetle-logo.beetle-offline .beetle-shell-right {
+  animation: shell-right-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 reverse forwards;
+}
+
+.beetle-logo.beetle-offline .beetle-wing-left {
+  animation: wing-left-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 reverse forwards;
+}
+
+.beetle-logo.beetle-offline .beetle-wing-right {
+  animation: wing-right-open-close 2s cubic-bezier(0.55, 0, 0.2, 1) 1 reverse forwards;
+}
+
+@keyframes shell-left-open-close {
+  0% {
+    transform: rotate(0deg) translateX(0) translateY(0) scaleY(1);
+  }
+  50%,
+  100% {
+    transform: rotate(-26deg) translateX(16px) translateY(-24px) scaleY(1.12);
+  }
+}
+
+@keyframes shell-right-open-close {
+  0% {
+    transform: rotate(0deg) translateX(0) translateY(0) scaleY(1);
+  }
+  50%,
+  100% {
+    transform: rotate(26deg) translateX(-16px) translateY(-24px) scaleY(1.12);
+  }
+}
+
+@keyframes wing-left-open-close {
+  0% {
+    transform: rotate(0deg) translateX(0) translateY(0);
+  }
+  38% {
+    transform: rotate(-63deg) translateX(91px) translateY(68px);
+  }
+  50% {
+    transform: rotate(-83deg) translateX(120px) translateY(90px);
+  }
+  100% {
+    transform: rotate(-83deg) translateX(120px) translateY(90px);
+  }
+}
+
+@keyframes wing-right-open-close {
+  0% {
+    transform: rotate(0deg) translateX(0) translateY(0);
+  }
+  38% {
+    transform: rotate(63deg) translateX(-91px) translateY(68px);
+  }
+  50% {
+    transform: rotate(83deg) translateX(-120px) translateY(90px);
+  }
+  100% {
+    transform: rotate(83deg) translateX(-120px) translateY(90px);
+  }
+}
+
+@media (max-width: 640px) {
+  .beetle-logo {
+    height: 224px;
+    margin-bottom: 1rem;
+  }
+
+  .beetle-torso {
+    width: 120px;
+    top: -2px;
+    transform: translateX(-50%);
+    clip-path: none;
+  }
+
+  .beetle-shell-left,
+  .beetle-shell-right {
+    width: 100px;
+    top: 72px;
+  }
+
+  .beetle-shell-left {
+    left: calc(50% - 102px);
+  }
+
+  .beetle-shell-right {
+    left: calc(50% + 0px);
+  }
+
+  .beetle-wing-left,
+  .beetle-wing-right {
+    width: 120px;
+    top: 70px;
+  }
+
+  .beetle-wing-left {
+    left: calc(50% - 170px);
+  }
+
+  .beetle-wing-right {
+    left: calc(50% + 51px);
+  }
 }
 
 .status-grid {
