@@ -19,6 +19,8 @@ interface CalendarEvent {
 
 type ViewMode = 'day' | 'week' | 'month';
 
+const CURRENT_TIME_LINE_COLOR = '#adff23';
+
 export default function Calendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
     const { token, logout } = useAuth();
@@ -26,6 +28,7 @@ export default function Calendar() {
 
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
+    const [now, setNow] = useState(new Date());
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -232,6 +235,40 @@ export default function Calendar() {
       }
   };
 
+  const handleDeleteEvent = async () => {
+      if (!token || !selectedEventId) return;
+
+      const shouldDelete = window.confirm('Are you sure you want to delete this event?');
+      if (!shouldDelete) return;
+
+      try {
+          const res = await fetch(`${API_URL}/api/calendar/events/${selectedEventId}`, {
+              method: 'DELETE',
+              headers: {
+                  Authorization: `Bearer ${token}`
+              }
+          });
+
+          if (res.status === 401) {
+              logout();
+              navigate('/login');
+              return;
+          }
+
+          if (res.ok) {
+              setEvents(events.filter(ev => ev.id !== selectedEventId));
+              setIsModalOpen(false);
+              setNewEventTitle('');
+              setSelectedEventId(null);
+          } else {
+              const errorText = await res.text();
+              alert(`Failed to delete event: ${errorText}`);
+          }
+      } catch (err) {
+          console.error(err);
+      }
+  };
+
 
   // --- Navigation Handlers ---
   const handlePrev = () => {
@@ -256,6 +293,16 @@ export default function Calendar() {
              d1.getDate() === d2.getDate();
   };
 
+  useEffect(() => {
+      const intervalId = window.setInterval(() => {
+          setNow(new Date());
+      }, 60000);
+
+      return () => {
+          window.clearInterval(intervalId);
+      };
+  }, []);
+
   // Render Logic
   const renderWeekView = () => {
       const startOfWeek = getStartOfWeek(currentDate);
@@ -266,6 +313,9 @@ export default function Calendar() {
           if (viewMode === 'week') d.setDate(d.getDate() + i);
           return d;
       });
+
+      const currentTimeTop = (now.getHours() + now.getMinutes() / 60) * 60;
+      const todayColumnIndex = viewDays.findIndex((day) => isSameDate(day, now));
 
       return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'hidden' }}>
@@ -399,8 +449,35 @@ export default function Calendar() {
                              </div>
                          );
                     })}
-                    
-                    {/* Current Time Indicator logic could be added here */}
+
+                    {/* Current time indicator */}
+                    {todayColumnIndex !== -1 && (
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: `${currentTimeTop}px`,
+                                left: `${todayColumnIndex * (100 / daysToShow)}%`,
+                                width: `${100 / daysToShow}%`,
+                                height: '0',
+                                borderTop: `2px solid ${CURRENT_TIME_LINE_COLOR}`,
+                                zIndex: 25,
+                                pointerEvents: 'none'
+                            }}
+                        >
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    left: '-4px',
+                                    top: '-5px',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: CURRENT_TIME_LINE_COLOR,
+                                    boxShadow: `0 0 8px ${CURRENT_TIME_LINE_COLOR}`
+                                }}
+                            ></div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -627,9 +704,22 @@ export default function Calendar() {
                             </div>
                           </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                          <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
-                          <button type="submit" style={{ padding: '10px 20px', background: 'var(--accent)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Save Event</button>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                          <div>
+                              {modalMode === 'edit' && (
+                                  <button
+                                      type="button"
+                                      onClick={handleDeleteEvent}
+                                      style={{ padding: '10px 20px', background: 'var(--error)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}
+                                  >
+                                      Delete Event
+                                  </button>
+                              )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                              <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
+                              <button type="submit" style={{ padding: '10px 20px', background: 'var(--accent)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Save Event</button>
+                          </div>
                       </div>
                   </form>
               </div>
