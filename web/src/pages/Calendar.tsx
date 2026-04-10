@@ -36,6 +36,9 @@ export default function Calendar() {
   const [newEventColor, setNewEventColor] = useState("var(--accent)");
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+    const [hoveredModalButton, setHoveredModalButton] = useState<'delete' | 'cancel' | 'save' | null>(null);
+    const [hoveredColorSwatch, setHoveredColorSwatch] = useState<string | null>(null);
+        const [activeInputField, setActiveInputField] = useState<'title' | 'start' | 'end' | null>(null);
 
   // Default new event times
   const getDefaultEventTimes = () => {
@@ -573,6 +576,70 @@ export default function Calendar() {
     );
   };
 
+  const getModalButtonStyle = (variant: 'delete' | 'cancel' | 'save') => {
+      const isHovered = hoveredModalButton === variant;
+
+      if (variant === 'delete') {
+          return {
+              padding: '10px 20px',
+              background: '#590902',
+              border: 'none',
+              color: 'white',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              transform: isHovered ? 'translateY(-2px) scale(1.01)' : 'translateY(0) scale(1)',
+              boxShadow: isHovered ? '0 8px 18px rgba(89, 9, 2, 0.45)' : 'none',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease',
+              filter: isHovered ? 'brightness(1.1)' : 'brightness(1)'
+          };
+      }
+
+      if (variant === 'cancel') {
+          return {
+              padding: '10px 20px',
+              background: isHovered ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-secondary)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+              boxShadow: isHovered ? '0 6px 14px rgba(0, 0, 0, 0.22)' : 'none',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease'
+          };
+      }
+
+      return {
+          padding: '10px 20px',
+          background: 'var(--accent)',
+          border: 'none',
+          color: 'white',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          fontWeight: 500,
+          transform: isHovered ? 'translateY(-2px) scale(1.01)' : 'translateY(0) scale(1)',
+          boxShadow: isHovered ? '0 8px 18px rgba(59, 130, 246, 0.4)' : 'none',
+          transition: 'transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease',
+          filter: isHovered ? 'brightness(1.08)' : 'brightness(1)'
+      };
+  };
+
+  const getModalInputStyle = (field: 'title' | 'start' | 'end') => {
+      const isActive = activeInputField === field;
+      return {
+          width: '100%',
+          padding: '10px',
+          backgroundColor: 'var(--bg-color)',
+          border: isActive ? '1px solid var(--accent)' : '1px solid var(--border)',
+          color: 'white',
+          borderRadius: '6px',
+          transform: isActive ? 'translateY(-1px)' : 'translateY(0)',
+          boxShadow: isActive ? '0 8px 18px rgba(59, 130, 246, 0.2)' : 'none',
+          transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease'
+      };
+  };
+
   return (
     <div className="calendar-container" style={{ height: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column', color: 'var(--text-primary)', backgroundColor: 'var(--bg-color)' }}>
       {/* Heavy Header */}
@@ -662,7 +729,11 @@ export default function Calendar() {
                             type="text" 
                             value={newEventTitle} 
                             onChange={e => setNewEventTitle(e.target.value)} 
-                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border)', color: 'white', borderRadius: '6px' }}
+                                                        onMouseEnter={() => setActiveInputField('title')}
+                                                        onMouseLeave={() => setActiveInputField(null)}
+                                                        onFocus={() => setActiveInputField('title')}
+                                                        onBlur={() => setActiveInputField(null)}
+                                                        style={getModalInputStyle('title')}
                             placeholder="Meeting with team..."
                             required
                           />
@@ -673,7 +744,11 @@ export default function Calendar() {
                             type="datetime-local" 
                             value={newEventStart}
                             onChange={e => setNewEventStart(e.target.value)}
-                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border)', color: 'white', borderRadius: '6px' }}
+                                                        onMouseEnter={() => setActiveInputField('start')}
+                                                        onMouseLeave={() => setActiveInputField(null)}
+                                                        onFocus={() => setActiveInputField('start')}
+                                                        onBlur={() => setActiveInputField(null)}
+                                                        style={getModalInputStyle('start')}
                             required
                           />
                       </div>
@@ -683,7 +758,11 @@ export default function Calendar() {
                             type="datetime-local" 
                             value={newEventEnd}
                             onChange={e => setNewEventEnd(e.target.value)}
-                            style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border)', color: 'white', borderRadius: '6px' }}
+                                                        onMouseEnter={() => setActiveInputField('end')}
+                                                        onMouseLeave={() => setActiveInputField(null)}
+                                                        onFocus={() => setActiveInputField('end')}
+                                                        onBlur={() => setActiveInputField(null)}
+                                                        style={getModalInputStyle('end')}
                             required
                           />
                       </div>
@@ -701,9 +780,14 @@ export default function Calendar() {
                                     <div 
                                         key={c}
                                         onClick={() => setNewEventColor(c)}
+                                        onMouseEnter={() => setHoveredColorSwatch(c)}
+                                        onMouseLeave={() => setHoveredColorSwatch(null)}
                                         style={{ 
                                             width: '32px', height: '32px', borderRadius: '50%', backgroundColor: c, cursor: 'pointer',
-                                            border: newEventColor === c ? '2px solid white' : '2px solid transparent'
+                                            border: newEventColor === c ? '2px solid white' : '2px solid transparent',
+                                            transform: hoveredColorSwatch === c ? 'translateY(-2px) scale(1.07)' : 'translateY(0) scale(1)',
+                                            boxShadow: hoveredColorSwatch === c ? '0 8px 16px rgba(0, 0, 0, 0.28)' : 'none',
+                                            transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease'
                                         }}
                                     />
                                 ))}
@@ -716,15 +800,32 @@ export default function Calendar() {
                                   <button
                                       type="button"
                                       onClick={handleDeleteEvent}
-                                      style={{ padding: '10px 20px', background: '#590902', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}
+                                      onMouseEnter={() => setHoveredModalButton('delete')}
+                                      onMouseLeave={() => setHoveredModalButton(null)}
+                                      style={getModalButtonStyle('delete')}
                                   >
                                       Delete Event
                                   </button>
                               )}
                           </div>
                           <div style={{ display: 'flex', gap: '10px' }}>
-                              <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
-                              <button type="submit" style={{ padding: '10px 20px', background: 'var(--accent)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Save Event</button>
+                              <button
+                                  type="button"
+                                  onClick={() => setIsModalOpen(false)}
+                                  onMouseEnter={() => setHoveredModalButton('cancel')}
+                                  onMouseLeave={() => setHoveredModalButton(null)}
+                                  style={getModalButtonStyle('cancel')}
+                              >
+                                  Cancel
+                              </button>
+                              <button
+                                  type="submit"
+                                  onMouseEnter={() => setHoveredModalButton('save')}
+                                  onMouseLeave={() => setHoveredModalButton(null)}
+                                  style={getModalButtonStyle('save')}
+                              >
+                                  Save Event
+                              </button>
                           </div>
                       </div>
                   </form>
