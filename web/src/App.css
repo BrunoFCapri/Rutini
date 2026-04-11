@@ -1015,6 +1015,19 @@ h1 {
   gap: 1rem;
 }
 
+.split-stack__group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.split-stack__title {
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
 .pill {
   display: inline-flex;
   align-items: center;

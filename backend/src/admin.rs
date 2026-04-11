@@ -150,7 +150,7 @@ pub async fn overview(
         FROM tasks
         LEFT JOIN users ON users.id = tasks.user_id
         ORDER BY tasks.updated_at DESC NULLS LAST, tasks.created_at DESC
-        LIMIT 8
+        LIMIT 10
         "#,
     )
     .fetch_all(&state.db)
@@ -169,7 +169,7 @@ pub async fn overview(
         FROM notes
         LEFT JOIN users ON users.id = notes.user_id
         ORDER BY notes.updated_at DESC NULLS LAST, notes.created_at DESC
-        LIMIT 8
+        LIMIT 10
         "#,
     )
     .fetch_all(&state.db)

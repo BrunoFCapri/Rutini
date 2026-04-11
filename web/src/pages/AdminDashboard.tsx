@@ -512,7 +512,9 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="split-stack">
-              <div className="table-wrap">
+              <div className="split-stack__group">
+                <h3 className="split-stack__title">Recent Tasks</h3>
+                <div className="table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -523,7 +525,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {overview.recent_tasks.map((item) => (
+                    {overview.recent_tasks.slice(0, 10).map((item) => (
                       <tr key={item.id}>
                         <td>{item.title}</td>
                         <td><span className={statusClass(item.status)}>{formatStatusLabel(item.status)}</span></td>
@@ -533,9 +535,12 @@ export default function AdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
-              <div className="table-wrap">
+              <div className="split-stack__group">
+                <h3 className="split-stack__title">Recent Notes</h3>
+                <div className="table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -545,7 +550,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {overview.recent_notes.map((item) => (
+                    {overview.recent_notes.slice(0, 10).map((item) => (
                       <tr key={item.id}>
                         <td>{item.title}</td>
                         <td>{item.owner_username}</td>
@@ -554,6 +559,7 @@ export default function AdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </section>
