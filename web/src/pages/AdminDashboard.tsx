@@ -138,6 +138,30 @@ function statusClass(status: string) {
   return 'pill';
 }
 
+function formatStatusLabel(status: string) {
+  const normalized = status.trim().toLowerCase();
+  const labels: Record<string, string> = {
+    todo: 'In Progress',
+    'to-do': 'In Progress',
+    in_progress: 'In Progress',
+    'in-progress': 'In Progress',
+    done: 'Completed',
+    completed: 'Completed',
+    confirmed: 'Confirmed',
+    cancelled: 'Cancelled',
+    blocked: 'Blocked',
+    overdue: 'Overdue',
+  };
+
+  if (labels[normalized]) {
+    return labels[normalized];
+  }
+
+  return normalized
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export default function AdminDashboard() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [userDetail, setUserDetail] = useState<UserDetailResponse | null>(null);
@@ -324,7 +348,7 @@ export default function AdminDashboard() {
                     {userDetail.tasks.map((task) => (
                       <tr key={task.id}>
                         <td>{task.title}</td>
-                        <td><span className={statusClass(task.status)}>{task.status}</span></td>
+                        <td><span className={statusClass(task.status)}>{formatStatusLabel(task.status)}</span></td>
                         <td>{formatDate(task.updated_at ?? task.created_at)}</td>
                       </tr>
                     ))}
@@ -354,7 +378,7 @@ export default function AdminDashboard() {
                           <span className="event-chip" style={{ backgroundColor: evt.color }} />
                           {evt.title}
                         </td>
-                        <td><span className={statusClass(evt.status)}>{evt.status}</span></td>
+                        <td><span className={statusClass(evt.status)}>{formatStatusLabel(evt.status)}</span></td>
                         <td>{formatDate(evt.start_time)}</td>
                         <td>{formatDate(evt.end_time)}</td>
                       </tr>
@@ -430,7 +454,7 @@ export default function AdminDashboard() {
             <div className="status-flow">
               {overview.task_status_breakdown.map((item) => (
                 <div key={item.status} className="status-flow__item">
-                  <span className={statusClass(item.status)}>{item.status}</span>
+                  <span className={statusClass(item.status)}>{formatStatusLabel(item.status)}</span>
                   <strong>{item.total}</strong>
                 </div>
               ))}
@@ -502,7 +526,7 @@ export default function AdminDashboard() {
                     {overview.recent_tasks.map((item) => (
                       <tr key={item.id}>
                         <td>{item.title}</td>
-                        <td><span className={statusClass(item.status)}>{item.status}</span></td>
+                        <td><span className={statusClass(item.status)}>{formatStatusLabel(item.status)}</span></td>
                         <td>{item.owner_username}</td>
                         <td>{formatDate(item.updated_at ?? item.created_at)}</td>
                       </tr>
@@ -559,7 +583,7 @@ export default function AdminDashboard() {
                         <span className="event-chip" style={{ backgroundColor: item.color }} />
                         {item.title}
                       </td>
-                      <td><span className={statusClass(item.status)}>{item.status}</span></td>
+                      <td><span className={statusClass(item.status)}>{formatStatusLabel(item.status)}</span></td>
                       <td>{item.owner_username}</td>
                       <td>{formatDate(item.start_time)}</td>
                       <td>{formatDate(item.end_time)}</td>
