@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
 
@@ -169,7 +168,6 @@ export default function AdminDashboard() {
   const [loadingUser, setLoadingUser] = useState(false);
   const [error, setError] = useState('');
   const { token, user, logout } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
@@ -252,15 +250,6 @@ export default function AdminDashboard() {
           </p>
         </div>
         <div className="admin-hero__actions">
-          <button
-            className="action-btn"
-            onClick={() => {
-              setUserDetail(null);
-              navigate('/admin');
-            }}
-          >
-            Volver al dashboard
-          </button>
           <button className="action-btn action-btn--danger" onClick={logout}>
             Salir
           </button>
