@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
@@ -18,7 +19,28 @@ const DriveAllFiles: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  // Subida de archivos "sueltos" (sin tarea)
+  // Estado para previsualización
+  const [previewUrl, setPreviewUrl] = useState<string|null>(null);
+  const [previewType, setPreviewType] = useState<string|null>(null);
+  const [previewName, setPreviewName] = useState<string|null>(null);
+    // Previsualizar archivo
+    const handlePreview = async (file: Attachment) => {
+      const res = await fetch(`${API_URL}/api/tasks/${file.task_id}/attachments/${file.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return alert('Error al obtener archivo');
+      const blob = await res.blob();
+      setPreviewUrl(URL.createObjectURL(blob));
+      setPreviewType(blob.type);
+      setPreviewName(file.filename);
+    };
+
+    const closePreview = () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setPreviewType(null);
+      setPreviewName(null);
+    };
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -112,7 +134,8 @@ const DriveAllFiles: React.FC = () => {
                   <td>{file.filename}{ext && <span style={{color:'#888'}}> ({ext})</span>}</td>
                   <td>{file.uploaded_at ? new Date(file.uploaded_at).toLocaleString() : ''}</td>
                   <td>
-                    <button onClick={() => handleDownload(file)}>Descargar</button>
+                    <button onClick={() => handlePreview(file)}>Previsualizar</button>{' '}
+                    <button onClick={() => handleDownload(file)}>Descargar</button>{' '}
                     <button onClick={() => handleDelete(file)}>Eliminar</button>
                   </td>
                 </tr>
@@ -121,6 +144,30 @@ const DriveAllFiles: React.FC = () => {
           </tbody>
         </table>
       )}
+
+      {/* Modal de previsualización */}
+      <Modal
+        isOpen={!!previewUrl}
+        onRequestClose={closePreview}
+        contentLabel="Previsualización"
+        style={{content:{maxWidth:600,margin:'auto',height:'80%',overflow:'auto'}}}
+        ariaHideApp={false}
+      >
+        <button onClick={closePreview} style={{float:'right'}}>Cerrar</button>
+        <h3>Previsualizando: {previewName}</h3>
+        {previewUrl && previewType && previewType.startsWith('image') && (
+          <img src={previewUrl} alt={previewName||''} style={{maxWidth:'100%',maxHeight:400}} />
+        )}
+        {previewUrl && previewType === 'application/pdf' && (
+          <iframe src={previewUrl} title="PDF" style={{width:'100%',height:400}} />
+        )}
+        {previewUrl && previewType && previewType.startsWith('text') && (
+          <iframe src={previewUrl} title="Texto" style={{width:'100%',height:400}} />
+        )}
+        {previewUrl && !['image','application/pdf','text'].some(t=>previewType?.startsWith(t)) && (
+          <p>No se puede previsualizar este tipo de archivo.</p>
+        )}
+      </Modal>
     </div>
   );
 };

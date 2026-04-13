@@ -1,3 +1,7 @@
+/* Asegura que el modal de react-modal esté siempre por encima */
+.ReactModal__Overlay {
+  z-index: 9999 !important;
+}
 /* Oculta la barra de scroll pero permite el scroll */
 body, .sidebar, .user-detail-panel, .editor, .notes-list, .admin-shell, .admin-panel, .table-wrap {
   scrollbar-width: thin; /* Firefox */
