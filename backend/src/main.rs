@@ -3,6 +3,7 @@ mod admin;
 mod users;
 mod notes;
 mod calendar;
+mod public_link;
 
 use axum::{
     extract::State,
@@ -82,6 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/api/status", get(get_status))
+        // Public calendar link
+        .route("/api/public/calendar", get(public_link::public_availability))
         // Tasks
         .route("/api/tasks", get(tasks::list_tasks).post(tasks::create_task))
         .route("/api/tasks/:id", patch(tasks::update_task).delete(tasks::delete_task))
