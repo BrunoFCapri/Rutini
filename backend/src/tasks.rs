@@ -80,6 +80,8 @@ pub struct Task {
     pub related_note_id: Option<Uuid>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
+    pub importante: bool,
+    pub urgente: bool,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -103,6 +105,8 @@ pub struct CreateTaskRequest {
     pub list_id: Option<Uuid>,
     pub parent_id: Option<Uuid>,
     pub related_note_id: Option<Uuid>,
+    pub importante: Option<bool>,
+    pub urgente: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,6 +121,8 @@ pub struct UpdateTaskRequest {
     pub parent_id: Option<Uuid>,
     pub position: Option<i32>,
     pub related_note_id: Option<Uuid>,
+    pub importante: Option<bool>,
+    pub urgente: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -397,8 +403,8 @@ pub async fn create_task(
 ) -> Result<Json<Task>, (StatusCode, String)> {
     let task = sqlx::query_as::<_, Task>(
         r#"
-        INSERT INTO tasks (user_id, title, description, priority, due_date, list_id, parent_id, related_note_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO tasks (user_id, title, description, priority, due_date, list_id, parent_id, related_note_id, importante, urgente)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
         "#
     )
@@ -410,6 +416,8 @@ pub async fn create_task(
     .bind(payload.list_id)
     .bind(payload.parent_id)
     .bind(payload.related_note_id)
+    .bind(payload.importante.unwrap_or(false))
+    .bind(payload.urgente.unwrap_or(false))
     .fetch_one(&state.db)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -437,13 +445,15 @@ pub async fn update_task(
             parent_id = COALESCE($9, parent_id),
             position = COALESCE($10, position),
             related_note_id = COALESCE($11, related_note_id),
+            importante = COALESCE($12, importante),
+            urgente = COALESCE($13, urgente),
             completed_at = CASE 
                 WHEN $4 = 'done' OR $4 = 'completed' THEN NOW()
                 WHEN $4 IS NOT NULL AND $4 != 'done' AND $4 != 'completed' THEN NULL
                 ELSE completed_at
             END,
             updated_at = NOW()
-        WHERE id = $1 AND user_id = $12
+        WHERE id = $1 AND user_id = $14
         RETURNING *
         "#
     )
@@ -458,6 +468,8 @@ pub async fn update_task(
     .bind(payload.parent_id)
     .bind(payload.position)
     .bind(payload.related_note_id)
+    .bind(payload.importante)
+    .bind(payload.urgente)
     .bind(claims.user_id)
     .fetch_one(&state.db)
     .await
@@ -488,5 +500,95 @@ pub async fn delete_task(
         return Err((StatusCode::NOT_FOUND, "Task not found".to_string()));
     }
 
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// Dependencias múltiples
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct TaskDependency {
+    pub task_id: Uuid,
+    pub parent_id: Uuid,
+}
+
+// Obtener dependencias de una tarea
+pub async fn get_task_dependencies(
+    State(state): State<AppState>,
+    Path(task_id): Path<Uuid>,
+    claims: Claims,
+) -> Result<Json<Vec<TaskDependency>>, (StatusCode, String)> {
+    // Verifica que la tarea pertenezca al usuario
+    let task: Option<Task> = sqlx::query_as("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
+        .bind(task_id)
+        .bind(claims.user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if task.is_none() {
+        return Err((StatusCode::NOT_FOUND, "Task not found or not owned by user".to_string()));
+    }
+    let deps = sqlx::query_as::<_, TaskDependency>(
+        "SELECT * FROM task_dependencies WHERE task_id = $1"
+    )
+    .bind(task_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(deps))
+}
+
+// Agregar dependencia
+#[derive(Debug, Deserialize)]
+pub struct AddDependencyRequest {
+    pub parent_id: Uuid,
+}
+
+pub async fn add_task_dependency(
+    State(state): State<AppState>,
+    Path(task_id): Path<Uuid>,
+    claims: Claims,
+    Json(payload): Json<AddDependencyRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    // Verifica que la tarea pertenezca al usuario
+    let task: Option<Task> = sqlx::query_as("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
+        .bind(task_id)
+        .bind(claims.user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if task.is_none() {
+        return Err((StatusCode::NOT_FOUND, "Task not found or not owned by user".to_string()));
+    }
+    sqlx::query("INSERT INTO task_dependencies (task_id, parent_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+        .bind(task_id)
+        .bind(payload.parent_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// Eliminar dependencia
+pub async fn delete_task_dependency(
+    State(state): State<AppState>,
+    Path((task_id, parent_id)): Path<(Uuid, Uuid)>,
+    claims: Claims,
+) -> Result<StatusCode, (StatusCode, String)> {
+    // Verifica que la tarea pertenezca al usuario
+    let task: Option<Task> = sqlx::query_as("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
+        .bind(task_id)
+        .bind(claims.user_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if task.is_none() {
+        return Err((StatusCode::NOT_FOUND, "Task not found or not owned by user".to_string()));
+    }
+    sqlx::query("DELETE FROM task_dependencies WHERE task_id = $1 AND parent_id = $2")
+        .bind(task_id)
+        .bind(parent_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
 }
