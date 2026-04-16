@@ -353,11 +353,18 @@ h1 {
 }
 
 
+
 .fluid-mini__scene .cluster-cube-scene__canvas {
   position: absolute;
   inset: 0;
   transform: translate3d(13%, 0, 0);
   transform-origin: center center;
+}
+
+@media (min-width: 1800px) {
+  .fluid-mini__scene .cluster-cube-scene__canvas {
+    transform: translate3d(20%, 0, 0);
+  }
 }
 
 @media (min-width: 1800px) {
@@ -701,6 +708,11 @@ h1 {
   .cluster-cube-scene__canvas {
     min-height: 280px;
     transform: translate3d(8%, 0, 0);
+  }
+  @media (min-width: 1800px) {
+    .cluster-cube-scene__canvas {
+      transform: translate3d(20%, 0, 0);
+    }
   }
   @media (min-width: 1800px) {
     .cluster-cube-scene__canvas {
