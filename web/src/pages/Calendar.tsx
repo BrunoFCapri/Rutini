@@ -325,7 +325,6 @@ export default function Calendar() {
           return d;
       });
 
-      const currentTimeTop = (now.getHours() + now.getMinutes() / 60) * 60;
       const todayColumnIndex = viewDays.findIndex((day) => isSameDate(day, now));
 
       return (
