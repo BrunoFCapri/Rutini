@@ -12,7 +12,9 @@
   "dependencies": {
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-modal": "^3.16.3",
     "react-router-dom": "^7.13.1",
+    "reactflow": "^11.11.4",
     "three": "^0.183.2"
   },
   "devDependencies": {
@@ -20,6 +22,7 @@
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/react-modal": "^3.16.3",
     "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.4",
