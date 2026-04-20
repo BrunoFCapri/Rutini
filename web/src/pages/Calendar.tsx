@@ -341,61 +341,50 @@ export default function Calendar() {
             </div>
 
             {/* Scrollable Time Grid */}
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', position: 'relative' }}>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', position: 'relative', minHeight: 0 }}>
                 {/* Time Gutter */}
-                <div style={{ width: '60px', flexShrink: 0 }}>
+                <div style={{ width: '60px', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
                     {Array.from({ length: 24 }).map((_, i) => (
-                        <div key={i} style={{ height: '60px', borderBottom: '1px solid var(--card-bg)', textAlign: 'right', paddingRight: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <div key={i} style={{ flex: 1, borderBottom: '1px solid var(--card-bg)', textAlign: 'right', paddingRight: '10px', fontSize: '0.8rem', color: 'var(--text-muted)', minHeight: 0 }}>
                             {i}:00
                         </div>
                     ))}
                 </div>
 
                 {/* Columns & Events */}
-                <div style={{ flex: 1, position: 'relative', display: 'flex', height: '1440px' }}>
+                <div style={{ flex: 1, position: 'relative', display: 'flex', height: '100%' }}>
                     {/* Background Grid Lines (Horizontal) */}
                     {Array.from({ length: 24 }).map((_, i) => (
-                        <div key={i} style={{ position: 'absolute', top: `${i * 60}px`, left: 0, right: 0, height: '60px', borderBottom: '1px solid var(--card-bg)', pointerEvents: 'none' }}></div>
+                        <div key={i} style={{ position: 'absolute', top: `calc(${i} * 100% / 24)`, left: 0, right: 0, height: '1px', borderBottom: '1px solid var(--card-bg)', pointerEvents: 'none' }}></div>
                     ))}
                     
                     {/* Column Borders (Vertical) */}
                     {viewDays.map((_, i) => (
-                        <div key={i} style={{ flex: 1, borderLeft: '1px solid var(--card-bg)', height: '1440px', pointerEvents: 'none' }}></div>
+                        <div key={i} style={{ flex: 1, borderLeft: '1px solid var(--card-bg)', height: '100%', pointerEvents: 'none' }}></div>
                     ))}
 
                     {/* Interaction Layer */}
                     <div 
-                        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1440px', zIndex: 5, cursor: 'crosshair' }}
-                        // Calculate Time logic needs to use offsetY from event if relative, but getBoundingClientRect is safer due to scrolling
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '100%', zIndex: 5, cursor: 'crosshair' }}
                         onClick={(e) => {
                             const rect = e.currentTarget.getBoundingClientRect();
                             const x = e.clientX - rect.left;
-                            const y = e.clientY - rect.top; // Relative to viewport top vs element top works even with scroll
+                            const y = e.clientY - rect.top;
 
                             const colWidth = rect.width / daysToShow;
                             const colIndex = Math.floor(x / colWidth);
-                            
                             if (colIndex < 0 || colIndex >= viewDays.length) return;
 
                             const clickedDate = new Date(viewDays[colIndex]);
-                            
-                            // 60px per hour
-                            // rect.height should be 1440
-                            let hourRaw = y / 60;
-                            // Clamp
+                            let hourRaw = y / (rect.height / 24);
                             if (hourRaw < 0) hourRaw = 0;
                             if (hourRaw > 23.9) hourRaw = 23.9;
-
                             const hour = Math.floor(hourRaw);
                             const minuteRaw = (hourRaw - hour) * 60;
-                            
-                            // Snap to 30 mins for easier clicking
                             const minute = Math.round(minuteRaw / 30) * 30;
-
                             clickedDate.setHours(hour, minute, 0, 0);
                             const endDate = new Date(clickedDate);
                             endDate.setHours(clickedDate.getHours() + 1);
-                            
                             openModalWithTimes(clickedDate, endDate);
                         }}
                     ></div>
@@ -410,13 +399,10 @@ export default function Calendar() {
                              const { start: dayStart, end: dayEnd } = getDayBounds(day);
                              const segmentStart = start > dayStart ? start : dayStart;
                              const segmentEnd = end < dayEnd ? end : dayEnd;
-
                              if (segmentStart >= segmentEnd) return null;
-
                              const startHours = segmentStart.getHours() + segmentStart.getMinutes() / 60;
                              const durationHours = (segmentEnd.getTime() - segmentStart.getTime()) / (1000 * 60 * 60);
                              const leftPercent = colIndex * widthPercent;
-
                              return (
                                  <div 
                                     key={`${event.id}-${day.toISOString()}`}
@@ -427,8 +413,8 @@ export default function Calendar() {
                                     }}
                                     style={{
                                         position: 'absolute',
-                                        top: `${startHours * 60}px`,
-                                        height: `${Math.max(durationHours * 60, 25)}px`,
+                                        top: `calc(${startHours} * 100% / 24)`,
+                                        height: `calc(${Math.max(durationHours, 0.4)} * 100% / 24)`,
                                         left: `${leftPercent}%`,
                                         width: `${widthPercent}%`,
                                         padding: '2px',
@@ -459,7 +445,7 @@ export default function Calendar() {
                         <div
                             style={{
                                 position: 'absolute',
-                                top: `${currentTimeTop}px`,
+                                top: `calc((${now.getHours()} + ${now.getMinutes()} / 60) * 100% / 24)`,
                                 left: `${todayColumnIndex * (100 / daysToShow)}%`,
                                 width: `${100 / daysToShow}%`,
                                 height: '0',
@@ -640,10 +626,10 @@ export default function Calendar() {
       };
   };
 
-  return (
-    <div className="calendar-container" style={{ height: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column', color: 'var(--text-primary)', backgroundColor: 'var(--bg-color)' }}>
+return (
+    <div className="calendar-container" style={{ height: '100dvh', minHeight: '100dvh', display: 'flex', flexDirection: 'column', color: 'var(--text-primary)', backgroundColor: 'var(--bg-color)', margin: 0, padding: 0 }}>
       {/* Heavy Header */}
-      <header style={{ padding: '20px', borderBottom: '1px solid var(--card-bg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <header style={{ padding: 0, margin: 0, minHeight: 0, height: 'auto', borderBottom: '1px solid var(--card-bg)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <button 
                 onClick={() => navigate('/')} 
@@ -707,7 +693,7 @@ export default function Calendar() {
         </div>
       </header>
 
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {viewMode === 'day' && renderWeekView()}
         {viewMode === 'week' && renderWeekView()}
         {viewMode === 'month' && renderMonthView()}
