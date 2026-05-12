@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
+import { useAPI } from '../utils/useAPI';
 
 interface Attachment {
   id: string;
@@ -14,6 +14,7 @@ interface Attachment {
 
 const DriveAllFiles: React.FC = () => {
   const { token } = useAuth();
+  const { fetchAPI } = useAPI();
   const navigate = useNavigate();
   const [files, setFiles] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,9 +26,7 @@ const DriveAllFiles: React.FC = () => {
   const [previewName, setPreviewName] = useState<string|null>(null);
     // Previsualizar archivo
     const handlePreview = async (file: Attachment) => {
-      const res = await fetch(`${API_URL}/api/tasks/${file.task_id}/attachments/${file.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchAPI(`/api/tasks/${file.task_id}/attachments/${file.id}`);
       if (!res.ok) return alert('Error al obtener archivo');
       const blob = await res.blob();
       setPreviewUrl(URL.createObjectURL(blob));
@@ -47,17 +46,14 @@ const DriveAllFiles: React.FC = () => {
     const data = new FormData(form);
     setUploading(true);
     // Endpoint especial: /api/tasks/null/attachments para archivos "sueltos"
-    const res = await fetch(`${API_URL}/api/tasks/null/attachments`, {
+    const res = await fetchAPI(`/api/tasks/null/attachments`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
       body: data,
     });
     setUploading(false);
     if (res.ok) {
       // Refresca la lista de archivos
-      fetch(`${API_URL}/api/attachments`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      fetchAPI(`/api/attachments`)
         .then((res) => res.json())
         .then(setFiles);
       form.reset();
@@ -68,22 +64,15 @@ const DriveAllFiles: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_URL}/api/attachments`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('Error al obtener archivos');
-        return res.json();
-      })
+    fetchAPI(`/api/attachments`)
+      .then((res) => res.json())
       .then(setFiles)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Error al obtener archivos'))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, fetchAPI]);
 
   const handleDownload = async (file: Attachment) => {
-    const res = await fetch(`${API_URL}/api/tasks/${file.task_id}/attachments/${file.id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetchAPI(`/api/tasks/${file.task_id}/attachments/${file.id}`);
     if (!res.ok) return alert('Error al descargar');
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
@@ -96,9 +85,8 @@ const DriveAllFiles: React.FC = () => {
 
   const handleDelete = async (file: Attachment) => {
     if (!window.confirm('¿Eliminar archivo?')) return;
-    const res = await fetch(`${API_URL}/api/tasks/${file.task_id}/attachments/${file.id}`, {
+    const res = await fetchAPI(`/api/tasks/${file.task_id}/attachments/${file.id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setFiles((prev) => prev.filter((f) => f.id !== file.id));
     else alert('Error al eliminar');

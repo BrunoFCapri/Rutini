@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { API_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
+import { useAPI } from '../utils/useAPI';
 
 type AdminSummary = {
   users: number;
@@ -168,6 +168,7 @@ export default function AdminDashboard() {
   const [loadingUser, setLoadingUser] = useState(false);
   const [error, setError] = useState('');
   const { token, user, logout } = useAuth();
+  const { fetchAPI } = useAPI();
 
   useEffect(() => {
     let active = true;
@@ -180,16 +181,7 @@ export default function AdminDashboard() {
       }
 
       try {
-        const res = await fetch(`${API_URL}/api/admin/overview`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error('No se pudo cargar el resumen de administración');
-        }
-
+        const res = await fetchAPI('/api/admin/overview');
         const data: AdminOverview = await res.json();
         if (active) {
           setOverview(data);
@@ -210,7 +202,7 @@ export default function AdminDashboard() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, fetchAPI]);
 
   const handleSelectUser = async (userId: string) => {
     if (!userId || !token) return;
@@ -219,16 +211,7 @@ export default function AdminDashboard() {
     setUserDetail(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/admin/user/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error('No se pudo cargar el detalle del usuario');
-      }
-
+      const res = await fetchAPI(`/api/admin/user/${userId}`);
       const data: UserDetailResponse = await res.json();
       setUserDetail(data);
     } catch (err) {

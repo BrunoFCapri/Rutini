@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../config';
+import { useAPI } from '../utils/useAPI';
 import { arrowIcon, calendarIcon } from '../assets/icons';
 
 interface CalendarEvent {
@@ -23,7 +23,8 @@ const CURRENT_TIME_LINE_COLOR = '#adff23';
 
 export default function Calendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-    const { token, logout } = useAuth();
+  const { token } = useAuth();
+  const { fetchAPI } = useAPI();
   const navigate = useNavigate();
 
   const [viewMode, setViewMode] = useState<ViewMode>('week');
@@ -163,20 +164,11 @@ export default function Calendar() {
         end_date: end.toISOString()
     });
 
-    fetch(`${API_URL}/api/calendar/events?${query}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-        .then(async res => {
-            if (res.status === 401) {
-                logout();
-                navigate('/login');
-                return [];
-            }
-            return res.json();
-        })
-    .then(data => setEvents(data))
-    .catch(err => console.error(err));
-    }, [token, currentDate, viewMode, logout, navigate]);
+    fetchAPI(`/api/calendar/events?${query}`)
+        .then(res => res.json())
+        .then(data => setEvents(data))
+        .catch(err => console.error(err));
+    }, [token, currentDate, viewMode, fetchAPI]);
 
 
   // --- Event Creation / Update ---
@@ -196,28 +188,21 @@ export default function Calendar() {
       };
 
       try {
-          let url = `${API_URL}/api/calendar/events`;
+          let endpoint = `/api/calendar/events`;
           let method = 'POST';
 
           if (modalMode === 'edit' && selectedEventId) {
-              url = `${API_URL}/api/calendar/events/${selectedEventId}`;
+              endpoint = `/api/calendar/events/${selectedEventId}`;
               method = 'PATCH';
           }
 
-          const res = await fetch(url, {
+          const res = await fetchAPI(endpoint, {
               method: method,
               headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`
+                  'Content-Type': 'application/json'
               },
               body: JSON.stringify(payload)
           });
-
-          if (res.status === 401) {
-              logout();
-              navigate('/login');
-              return;
-          }
 
           if (res.ok) {
               const savedEvent = await res.json();
@@ -245,18 +230,9 @@ export default function Calendar() {
       if (!shouldDelete) return;
 
       try {
-          const res = await fetch(`${API_URL}/api/calendar/events/${selectedEventId}`, {
-              method: 'DELETE',
-              headers: {
-                  Authorization: `Bearer ${token}`
-              }
+          const res = await fetchAPI(`/api/calendar/events/${selectedEventId}`, {
+              method: 'DELETE'
           });
-
-          if (res.status === 401) {
-              logout();
-              navigate('/login');
-              return;
-          }
 
           if (res.ok) {
               setEvents(events.filter(ev => ev.id !== selectedEventId));
