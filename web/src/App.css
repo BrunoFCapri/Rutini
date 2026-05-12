@@ -826,14 +826,33 @@ h1 {
 /* Notes Layout */
 .notes-layout {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  min-height: 100svh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   background-color: var(--bg-color);
   color: var(--text-primary);
 }
 
+body.notes-page #root {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-inline: 0;
+}
+
+body.notes-page {
+  overflow-x: hidden;
+}
+
+body.notes-page .notes-layout {
+  width: 100%;
+  max-width: none;
+}
+
 .sidebar {
   width: 250px;
+  flex-shrink: 0;
   background-color: var(--card-bg);
   border-right: 1px solid var(--border);
   display: flex;
@@ -877,11 +896,14 @@ h1 {
 }
 
 .editor {
-  flex: 1;
-  padding: 2rem 4rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 2rem clamp(1.25rem, 3vw, 4rem);
   overflow-y: auto;
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .title-input {

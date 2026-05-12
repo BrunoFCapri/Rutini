@@ -374,6 +374,14 @@ export default function Notes() {
   
   const [isMouseSelecting, setIsMouseSelecting] = useState(false);
 
+    useEffect(() => {
+        document.body.classList.add('notes-page');
+
+        return () => {
+            document.body.classList.remove('notes-page');
+        };
+    }, []);
+
   // History state for Undo/Redo. Limit 50 steps.
   const [history, setHistory] = useState<Block[][]>([[{ id: crypto.randomUUID(), type: 'text', content: '' }]]);
   // Pointer to current state in history
