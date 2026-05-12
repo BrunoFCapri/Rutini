@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { API_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
+import { useAPI } from '../utils/useAPI';
 
 interface Task {
   id: string;
@@ -14,6 +14,7 @@ interface Attachment {
 
 const DriveByTask: React.FC = () => {
   const { token } = useAuth();
+  const { fetchAPI } = useAPI();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<string>('');
   const [files, setFiles] = useState<Attachment[]>([]);
@@ -22,20 +23,20 @@ const DriveByTask: React.FC = () => {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/tasks`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchAPI(`/api/tasks`)
       .then((res) => res.json())
       .then(setTasks);
-  }, [token]);
+  }, [token, fetchAPI]);
 
   useEffect(() => {
     if (!selectedTask) return setFiles([]);
     setLoading(true);
-    fetch(`${API_URL}/api/tasks/${selectedTask}/attachments`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchAPI(`/api/tasks/${selectedTask}/attachments`)
       .then((res) => res.json())
       .then(setFiles)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
       .finally(() => setLoading(false));
-  }, [selectedTask, token]);
+  }, [selectedTask, token, fetchAPI]);
 
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,9 +44,8 @@ const DriveByTask: React.FC = () => {
     const form = e.currentTarget;
     const data = new FormData(form);
     setUploading(true);
-    const res = await fetch(`${API_URL}/api/tasks/${selectedTask}/attachments`, {
+    const res = await fetchAPI(`/api/tasks/${selectedTask}/attachments`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
       body: data,
     });
     setUploading(false);
@@ -59,9 +59,7 @@ const DriveByTask: React.FC = () => {
   };
 
   const handleDownload = async (file: Attachment) => {
-    const res = await fetch(`${API_URL}/api/tasks/${selectedTask}/attachments/${file.id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetchAPI(`/api/tasks/${selectedTask}/attachments/${file.id}`);
     if (!res.ok) return alert('Error al descargar');
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
@@ -74,9 +72,8 @@ const DriveByTask: React.FC = () => {
 
   const handleDelete = async (file: Attachment) => {
     if (!window.confirm('¿Eliminar archivo?')) return;
-    const res = await fetch(`${API_URL}/api/tasks/${selectedTask}/attachments/${file.id}`, {
+    const res = await fetchAPI(`/api/tasks/${selectedTask}/attachments/${file.id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setFiles((prev) => prev.filter((f) => f.id !== file.id));
     else alert('Error al eliminar');

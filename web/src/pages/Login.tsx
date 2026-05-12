@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { API_URL } from '../config';
+import { useAPI } from '../utils/useAPI';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -9,14 +9,16 @@ export default function Login() {
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { fetchAPI } = useAPI();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
+      const res = await fetchAPI(`/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password }),
+        skipAuth: true,
       });
 
       if (!res.ok) {

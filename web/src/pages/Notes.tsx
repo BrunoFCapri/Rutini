@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../config';
+import { useAPI } from '../utils/useAPI';
 
 interface Note {
   id: string;
@@ -365,8 +365,9 @@ export default function Notes() {
   const [title, setTitle] = useState('');
   const [focusedBlockIndex, setFocusedBlockIndex] = useState<number>(-1);
   const [selectionAnchor, setSelectionAnchor] = useState<number | null>(null);
-  const { token, logout } = useAuth();
+    const { token } = useAuth();
   const navigate = useNavigate();
+  const { fetchAPI } = useAPI();
   // const editorRef = useRef<HTMLElement>(null); // Not used currently
   const titleInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusTitleRef = useRef(false);
@@ -539,21 +540,13 @@ export default function Notes() {
   // Fetch notes
   useEffect(() => {
     if (!token) return;
-    fetch(`${API_URL}/api/notes`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => {
-        if (res.status === 401) {
-            logout();
-            return [];
-        }
-        return res.json();
-    })
+    fetchAPI(`/api/notes`)
+    .then(res => res.json())
     .then(data => {
         if (Array.isArray(data)) setNotes(data);
     })
     .catch(console.error);
-  }, [token]);
+  }, [token, fetchAPI]);
 
   const generateId = () => {
     return crypto.randomUUID();
@@ -564,13 +557,9 @@ export default function Notes() {
     const initialBlocks = [{ id: generateId(), type: 'text', content: "" }];
     const newNote = { title: "Untitled", content: initialBlocks };
     
-    try {
-        const res = await fetch(`${API_URL}/api/notes`, {
+        try {
+                const res = await fetchAPI(`/api/notes`, {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}` 
-          },
           body: JSON.stringify(newNote)
         });
         
@@ -592,9 +581,8 @@ export default function Notes() {
     if (!window.confirm("Are you sure you want to delete this page and all its subpages?")) return;
 
     try {
-        const res = await fetch(`${API_URL}/api/notes/${noteId}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await fetchAPI(`/api/notes/${noteId}`, {
+          method: 'DELETE'
         });
         
         if (res.ok) {
@@ -643,13 +631,9 @@ export default function Notes() {
 
     console.log("createSubNote: Posting new note to API:", newNote);
 
-    try {
-        const res = await fetch(`${API_URL}/api/notes`, {
+        try {
+                const res = await fetchAPI(`/api/notes`, {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}` 
-          },
           body: JSON.stringify(newNote)
         });
         
@@ -658,9 +642,7 @@ export default function Notes() {
             console.log("createSubNote: Subnote created:", savedNote);
             
             // Refetch all notes to ensure hierarchy is up to date
-            const notesRes = await fetch(`${API_URL}/api/notes`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const notesRes = await fetchAPI(`/api/notes`);
             if (notesRes.ok) {
                 const allNotes = await notesRes.json();
                 console.log("createSubNote: Notes list updated, count:", allNotes.length);
@@ -694,12 +676,9 @@ export default function Notes() {
             setBlocks(blocksForSave);
             setFocusedBlockIndex(blockIndex + 1);
 
-            const patchRes = await fetch(`${API_URL}/api/notes/${selectedNote.id}`, {
+            const patchRes = await fetchAPI(`/api/notes/${selectedNote.id}`, {
                 method: 'PATCH',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}` 
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: blocksForSave })
             });
 
@@ -741,12 +720,9 @@ export default function Notes() {
 
     // Persist to backend
     try {
-        await fetch(`${API_URL}/api/notes/${selectedNote.id}`, {
+        await fetchAPI(`/api/notes/${selectedNote.id}`, {
           method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}` 
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: currentTitle, content: blocks })
         });
     } catch (e) {

@@ -2,13 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useAPI } from './utils/useAPI';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Notes from './pages/Notes';
 import Calendar from './pages/Calendar';
 import Tasks from './pages/Tasks';
 import AdminDashboard from './pages/AdminDashboard.tsx';
-import { API_URL } from './config';
 import DriveAllFiles from './pages/DriveAllFiles';
 import DriveByTask from './pages/DriveByTask';
 import { calendarIcon, folderIcon, starIcon, taskIcon } from './assets/icons';
@@ -893,6 +893,7 @@ function Dashboard() {
   const wasConnectedRef = useRef(false);
   const subtleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { logout, user } = useAuth();
+  const { fetchAPI } = useAPI();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -901,11 +902,7 @@ function Dashboard() {
 
     const checkStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/status`);
-        if (!res.ok) {
-          throw new Error('Failed to fetch status');
-        }
-
+        const res = await fetchAPI(`/api/status`, { skipAuth: true });
         const data: Status = await res.json();
         if (!isMounted) return;
 
